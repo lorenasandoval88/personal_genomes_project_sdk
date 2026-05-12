@@ -14808,7 +14808,6 @@ var libExports = requireLib();
 var JSZip = /*@__PURE__*/getDefaultExportFromCjs(libExports);
 
 const PGP_BASE_URL = "https://my.pgp-hms.org";
-const WORKER_BASE = "https://lorena-api.lorenasandoval88.workers.dev/?url=";
 
 function hasSupportedGenomeVersionLabel(value = "") {
   return /(^|[^a-z0-9])v(?:3|4|5)(?=[^a-z0-9]|$)/i.test(String(value));
@@ -14921,72 +14920,23 @@ function splitDatatypeBlock(block) {
   return [...new Set(labels)];
 }
 
-async function fetchWithCandidates(target, options = {}) {
-  const {
-    localProxyPath = null,
-    acceptJson = false,
-    includeGithubProxy = false,
-    fetchImpl = fetch
-  } = options;
+async function fetchDirect(target, options = {}) {
+  const { acceptJson = false, fetchImpl = fetch } = options;
 
-  const candidates = [{
-    name: "cf-worker",
-    url: `${WORKER_BASE}${encodeURIComponent(target)}`
-  }];
-
-  if (localProxyPath) {
-    candidates.push({
-      name: "local-proxy",
-      url: `http://localhost:3000${localProxyPath}`
-    });
-  }
-
-  candidates.push({
-    name: "allorigins",
-    url: `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}`
+  const response = await fetchImpl(target, {
+    redirect: "follow",
+    headers: acceptJson ? { Accept: "application/json" } : undefined
   });
 
-  candidates.push({
-    name: "corsproxy",
-    url: `https://corsproxy.io/?${target}`
-  });
-
-  if (includeGithubProxy) {
-    candidates.push({
-      name: "github-pages-proxy",
-      url: "https://lorenasandoval88.github.io/get-23andme-data/pgp-stats"
-    });
+  if (!response.ok) {
+    throw new Error(`Direct fetch failed for ${target}: HTTP ${response.status}`);
   }
 
-  const errors = [];
-
-  for (const candidate of candidates) {
-    try {
-      const response = await fetchImpl(candidate.url, {
-        headers: acceptJson ? { Accept: "application/json" } : undefined
-      });
-
-      if (!response.ok) {
-        errors.push(`${candidate.name}: HTTP ${response.status}`);
-        continue;
-      }
-
-      const finalUrl =
-        response.headers.get("x-final-url") ||
-        response.headers.get("X-Final-URL") ||
-        response.url;
-
-      return {
-        response,
-        finalUrl,
-        source: candidate.name
-      };
-    } catch (error) {
-      errors.push(`${candidate.name}: ${error.message}`);
-    }
-  }
-
-  throw new Error(`All proxy candidates failed for ${target}: ${errors.join(" | ")}`);
+  return {
+    response,
+    finalUrl: response.url || target,
+    source: "direct"
+  };
 }
 
 function parseParticipantsFast(html, source = "unknown") {
@@ -15031,7 +14981,7 @@ function parseParticipantsFast(html, source = "unknown") {
 
 async function fetchAvailableDataTypes({
   base_url = `${PGP_BASE_URL}/public_genetic_data`,
-  url = `${WORKER_BASE}${encodeURIComponent(base_url)}`,
+  url = base_url,
   fetchImpl = fetch
 } = {}) {
   const res = await fetchImpl(url);
@@ -15092,9 +15042,7 @@ async function fetchAvailableDataTypes({
 async function allUsersMetaDataByType_fast(dataType = "23andMe") {
   const pgpUrl = `${PGP_BASE_URL}/public_genetic_data?utf8=%E2%9C%93&data_type=${encodeURIComponent(dataType)}&commit=Search`;
 
-  const { response, source } = await fetchWithCandidates(pgpUrl, {
-    localProxyPath: "/pgp-participants"
-  });
+  const { response, source } = await fetchDirect(pgpUrl);
 
   const html = await response.text();
   return parseParticipantsFast(html, source);
@@ -15104,10 +15052,7 @@ async function fetchProfile(id) {
   const resolvedId = typeof id === "string" && id.trim() ? id.trim() : "hu09B28E";
   const profileUrl = `https://my.pgp-hms.org/profile/${resolvedId}.json`;
 
-  const { response } = await fetchWithCandidates(profileUrl, {
-    localProxyPath: `/pgp-profile/${resolvedId}`,
-    acceptJson: true
-  });
+  const { response } = await fetchDirect(profileUrl, { acceptJson: true });
 
   return response.json();
 }
@@ -15164,10 +15109,7 @@ async function load23andMeFile(path, id = null) {
     return parse23Txt(txt, path);
   }
 
-  const { response: finalResponse, finalUrl, source } = await fetchWithCandidates(path, {
-    localProxyPath: "/pgp-stats",
-    includeGithubProxy: true
-  });
+  const { response: finalResponse, finalUrl, source } = await fetchDirect(path);
 
   if (finalUrl.endsWith(".txt")) {
     assertSupportedGenomeVersionLabel(finalUrl, "href");
