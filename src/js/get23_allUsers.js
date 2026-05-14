@@ -573,14 +573,16 @@ async function fetch23andMeParticipants(limit = 10, options = {}) {
 // 1. Cache-first strategy 2. Multi-proxy fallback 3. Source tracking
 // Example: fetchProfile("hu416394").then(console.log);
 async function fetchProfile(id) {
+    console.log(`fetchProfile(): Fetching profile for ID: ${id}...`);
     const resolvedId = typeof id === "string" && id.trim() ? id.trim() : "hu09B28E";
 
     const cachedProfile = await getCachedProfile(resolvedId);
     if (cachedProfile) {
+        console.log(`fetchProfile(): Cache hit for ID: ${resolvedId}, profile:`, cachedProfile);
         lastProfileSourceById.set(resolvedId, "cache");
         return cachedProfile;
     }
-
+    console.log(`fetchProfile(): Cache miss for ID: ${resolvedId}, trying network...`);
     const profileUrl = `https://my.pgp-hms.org/profile/${resolvedId}.json`;
     const candidates = [
         { name: "cf-worker", url: `${WORKER_BASE}${encodeURIComponent(profileUrl)}` },
@@ -605,7 +607,7 @@ async function fetchProfile(id) {
                 continue;
             }
             const data = await res.json();
-            // console.log(`fetchProfile(): Successfully fetched profile ${resolvedId} from ${candidate.name}`,data);
+            console.log(`fetchProfile(): Successfully fetched profile ${resolvedId} from ${candidate.name}`,data);
 
             lastProfileSourceById.set(resolvedId, candidate.name);
             await setCachedProfile(resolvedId, data);
@@ -657,6 +659,7 @@ function getLastProfileSource(id) {
     // console.log("getLastProfileSource:", lastProfileSourceById.get(id));
     return lastProfileSourceById.get(id) || null;
 }
+
 
 /**
  * Resolve the actual filename from a PGP download URL by following redirects.

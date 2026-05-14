@@ -1,6 +1,6 @@
 import localforage from "localforage";
 const dataType = "23andMe";
-const MAX_GET23_CACHE_BYTES = 300 * 1024 * 1024;
+const MAX_GET23_CACHE_BYTES = 600 * 1024 * 1024;
 const GET23_KEY_PREFIX = `Genome:${dataType}-txt-`;
 
 import JSZip from "jszip";
