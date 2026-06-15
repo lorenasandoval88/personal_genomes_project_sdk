@@ -578,7 +578,7 @@ async function fetchProfile(id) {
 
     const cachedProfile = await getCachedProfile(resolvedId);
     if (cachedProfile) {
-        console.log(`fetchProfile(): Cache hit for ID: ${resolvedId}, profile:`, cachedProfile);
+        console.log(`fetchProfile(): Cache hit for ID: ${resolvedId}`)//, profile:`, cachedProfile);
         lastProfileSourceById.set(resolvedId, "cache");
         return cachedProfile;
     }

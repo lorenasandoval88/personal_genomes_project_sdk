@@ -2865,7 +2865,7 @@ var jszip_minExports = requireJszip_min();
 var JSZip = /*@__PURE__*/getDefaultExportFromCjs(jszip_minExports);
 
 const dataType$1 = "23andMe";
-const MAX_GET23_CACHE_BYTES = 300 * 1024 * 1024;
+const MAX_GET23_CACHE_BYTES = 600 * 1024 * 1024;
 const GET23_KEY_PREFIX = `Genome:${dataType$1}-txt-`;
 
 // evicts in this order:First: cached pgs:id-* entries whose IDs are not in current ids.
@@ -3468,7 +3468,7 @@ async function loadStats(options = {}) {
         //23andme data is in a table, so we look for rows
         const rows = [...doc.querySelectorAll("table tbody tr")];
         let stats = null;
-
+        console.log("rows",rows);
         for (const row of rows) {
             const cols = row.querySelectorAll("td");
             if (cols.length === 0) continue;
@@ -3480,7 +3480,7 @@ async function loadStats(options = {}) {
                 dataType: cols[0].innerText.trim(),
                 datasets: parseInt(cols[1].innerText.replace(/,/g, ""), 10),
                 participants: parseInt(cols[2].innerText.replace(/,/g, ""), 10),
-                positions: parseInt(cols[3].innerText.replace(/,/g, ""), 10)+"k"
+                positions: parseInt(cols[3].innerText.replace(/,/g, ""), 10)
             };
             //console.log("Extracted stats:", stats);
             break;
@@ -4108,7 +4108,7 @@ async function fetchProfile(id) {
 
     const cachedProfile = await getCachedProfile(resolvedId);
     if (cachedProfile) {
-        console.log(`fetchProfile(): Cache hit for ID: ${resolvedId}, profile:`, cachedProfile);
+        console.log(`fetchProfile(): Cache hit for ID: ${resolvedId}`);//, profile:`, cachedProfile);
         lastProfileSourceById.set(resolvedId, "cache");
         return cachedProfile;
     }

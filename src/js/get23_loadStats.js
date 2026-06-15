@@ -129,7 +129,7 @@ async function loadStats(options = {}) {
         //23andme data is in a table, so we look for rows
         const rows = [...doc.querySelectorAll("table tbody tr")];
         let stats = null;
-
+        console.log("rows",rows)
         for (const row of rows) {
             const cols = row.querySelectorAll("td");
             if (cols.length === 0) continue;
@@ -141,7 +141,7 @@ async function loadStats(options = {}) {
                 dataType: cols[0].innerText.trim(),
                 datasets: parseInt(cols[1].innerText.replace(/,/g, ""), 10),
                 participants: parseInt(cols[2].innerText.replace(/,/g, ""), 10),
-                positions: parseInt(cols[3].innerText.replace(/,/g, ""), 10)+"k"
+                positions: parseInt(cols[3].innerText.replace(/,/g, ""), 10)
             };
             //console.log("Extracted stats:", stats);
             break;
