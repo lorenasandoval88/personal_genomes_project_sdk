@@ -1,7 +1,7 @@
 {
   "type": "module",
   "name": "personal_genomes_project_sdk",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "description": "Fetch and cache 23andMe genetic data from the Personal Genome Project (PGP)",
   "license": "MIT",
   "author": "Lorena Sandoval",
@@ -39,13 +39,12 @@
     "@rollup/plugin-json": "^6.0.0",
     "@rollup/plugin-node-resolve": "^15.0.0",
     "@rollup/plugin-terser": "^1.0.0",
+    "express": "^4.21.2",
+    "plotly.js-dist-min": "^2.35.3",
     "rollup": "^4.59.0"
   },
   "dependencies": {
-    "express": "^4.21.2",
     "jszip": "^3.10.1",
-    "localforage": "^1.10.0",
-    "personal_genomes_project_sdk": "github:lorenasandoval88/personal_genomes_project_sdk",
-    "plotly.js-dist-min": "^2.35.3"
+    "localforage": "^1.10.0"
   }
 }

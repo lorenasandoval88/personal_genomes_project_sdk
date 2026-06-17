@@ -4,7 +4,11 @@ import {
   allUsersMetaDataByType_fast,
   fetchProfile,
   load23andMeFile,
-  parse23Txt
+  parse23Txt,
+  fetch23andMeParticipants,
+  parseParticipantsCloud,
+  resolveDownloadFilenameCloud,
+  load23andMeFileCloud
 } from "./src/js/cloud/pgp_node.js";
 
 export {
@@ -13,5 +17,9 @@ export {
   allUsersMetaDataByType_fast,
   fetchProfile,
   load23andMeFile,
-  parse23Txt
+  parse23Txt,
+  fetch23andMeParticipants,
+  parseParticipantsCloud,
+  resolveDownloadFilenameCloud,
+  load23andMeFileCloud
 };
