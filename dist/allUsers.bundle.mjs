@@ -3368,6 +3368,8 @@ async function allUsersMetaDataByType_fast(dataType = "23andMe") {
  * Uses cache-first loading from a standard bulk cache and falls back to HTML fetching.
  * Parsed participants are cached in bulk and also cached individually for filename resolution.
  * Each participant is cached individually - "Load more" naturally works.
+ * 
+ * // uses parseParticipants() and resolveDownloadFilename() to get actual filenames, which may involve network calls per participant if not cached.
  * @param {number} limit - Number of participants to return (default: 10)
  * @param {Object} options - Options
  * @param {number} options.batchSize - Log progress every N participants (default: 10)
