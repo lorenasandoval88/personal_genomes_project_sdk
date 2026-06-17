@@ -15080,6 +15080,13 @@ async function parse23Txt(txt, url) {
 
   return obj;
 }
+//fetches and parses a 23andMe genome file from a URL or local path. It handles four cases:
+
+// Local or plain .txt URL — fetches directly, validates the genome version label (v3/v4/v5), parses via parse23Txt
+// Remote .txt — same as above but after a redirected fetch
+// Remote .zip — downloads, validates ZIP magic bytes, finds the versioned .txt inside, extracts and parses it
+// Directory listing (/_/) — fetches the HTML listing, finds a versioned .zip or .txt link, then falls into case 2 or 3
+// All paths return the result of parse23Txt, which produces { txt, url, filename, meta, cols, dt }.
 
 async function load23andMeFile(path, id = null) {
   if (typeof path !== "string") {
