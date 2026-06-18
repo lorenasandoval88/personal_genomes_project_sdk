@@ -1,4 +1,4 @@
-
+## personal_genomes_project_sdk
 A JavaScript SDK and demo application for retrieving, caching, and exploring publicly shared 23andMe data from the [**Personal Genome Project (PGP)**](https://my.pgp-hms.org/public_genetic_data).
 
 The toolkit supports participant discovery, profile lookup, summary statistics, and loading of genotype files for downstream analysis. It ships in two flavors from a single package:
