@@ -1,0 +1,15 @@
+  "name": "test23_unknwn",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node index_version_unknwn.mjs",
+    "test": "node index_version_unknwn.mjs"
+  },
+  "dependencies": {
+    "@google-cloud/storage": "^7.21.0",
+    "jszip": "^3.10.1",
+    "personal_genomes_project_sdk": "latest"
+  },
+  "author": "Lorena Sandoval",
+  "license": "ISC"
+}

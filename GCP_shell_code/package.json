@@ -1,0 +1,16 @@
+  "dependencies": {
+    "@google-cloud/storage": "^7.21.0",
+    "jszip": "^3.10.1",
+    "personal_genomes_project_sdk": "^1.1.0"
+  },
+  "name": "test23",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node test_one.mjs",
+    "test": "node test_one.mjs"
+  },
+  "keywords": [],
+  "author": "Lorena Sandoval",
+  "license": "ISC"
+}
