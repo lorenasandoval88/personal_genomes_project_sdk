@@ -8,7 +8,8 @@ import {
   fetch23andMeParticipants,
   parseParticipantsCloud,
   resolveDownloadFilenameCloud,
-  load23andMeFileCloud
+  load23andMeFileCloud,
+  load23andMeFileCloud_unknwn
 } from "./src/js/cloud/pgp_node.js";
 
 export {
@@ -21,5 +22,6 @@ export {
   fetch23andMeParticipants,
   parseParticipantsCloud,
   resolveDownloadFilenameCloud,
-  load23andMeFileCloud
+  load23andMeFileCloud,
+  load23andMeFileCloud_unknwn
 };

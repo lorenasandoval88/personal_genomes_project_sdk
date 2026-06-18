@@ -15378,6 +15378,8 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
   };
 }
 
+
+
 // This is the main downloader.
 //downloads the actual 23andMe text from direct .txt, .zip, or /_/ directory
 async function load23andMeFileCloud(path, id = null) {
@@ -15486,13 +15488,192 @@ async function load23andMeFileCloud(path, id = null) {
   throw new Error(`Unsupported final URL type from ${source}: ${finalUrl}`);
 }
 
+// Same as load23andMeFileCloud but accepts any .txt or .zip without requiring
+// a v3/v4/v5 genome-version label in the filename or zip entry.
+async function load23andMeFileCloud_unknwn(path, id = null) {
+  if (typeof path !== "string") {
+    throw new TypeError("load23andMeFileCloud_unknwn expects a URL string");
+  }
+
+  if (!/^https?:\/\//i.test(path)) {
+    throw new Error(`Cloud version expects a remote URL, got: ${path}`);
+  }
+
+  if (!id) {
+    const idMatch = path.match(/hu[A-Z0-9]+/i);
+    id = idMatch ? idMatch[0] : null;
+  }
+
+  const { response: finalResponse, finalUrl, source } = await fetchDirect(path);
+
+  if (!finalResponse.ok) {
+    throw new Error(`Failed to load ${path}: HTTP ${finalResponse.status}`);
+  }
+
+  const lowerFinalUrl = finalUrl.toLowerCase().split("?")[0];
+
+  // Case 1: direct TXT (no version check)
+  if (lowerFinalUrl.endsWith(".txt")) {
+    const txt = await finalResponse.text();
+
+    if (!txt || !txt.trim()) {
+      throw new Error(`TXT response from ${source} is empty`);
+    }
+
+    return {
+      id,
+      txt,
+      url: finalUrl,
+      filename: getFilenameFromUrl(finalUrl),
+      fileExtension: "txt"
+    };
+  }
+
+  // Case 2: direct ZIP (no version check on entries)
+  if (lowerFinalUrl.endsWith(".zip")) {
+    return await extractTxtFromZipResponse(
+      finalResponse,
+      finalUrl,
+      source,
+      id,
+      { requireVersionLabel: false }
+    );
+  }
+
+  // Case 3: directory listing /_/ — pick first .txt or .zip (no version filter)
+  if (lowerFinalUrl.endsWith("/_/")) {
+    const html = await finalResponse.text();
+
+    if (!html || !html.trim()) {
+      throw new Error(`Directory listing from ${source} is empty`);
+    }
+
+    const hrefs = [...html.matchAll(/href="([^"]+)"/gi)].map(match => match[1]);
+
+    const preferredHref =
+      hrefs.find(href => /\.txt$/i.test(href)) ||
+      hrefs.find(href => /\.zip$/i.test(href));
+
+    if (!preferredHref) {
+      throw new Error(`No .txt or .zip file found in directory listing for ${path}`);
+    }
+
+    const resolvedFileUrl = new URL(preferredHref, finalUrl).href;
+    const nestedResponse = await fetch(resolvedFileUrl, { redirect: "follow" });
+
+    if (!nestedResponse.ok) {
+      throw new Error(`Failed to fetch file from directory: HTTP ${nestedResponse.status}`);
+    }
+
+    const lowerResolvedUrl = resolvedFileUrl.toLowerCase().split("?")[0];
+
+    if (lowerResolvedUrl.endsWith(".txt")) {
+      const txt = await nestedResponse.text();
+
+      if (!txt || !txt.trim()) {
+        throw new Error(`Directory TXT file is empty: ${resolvedFileUrl}`);
+      }
+
+      return {
+        id,
+        txt,
+        url: resolvedFileUrl,
+        filename: getFilenameFromUrl(resolvedFileUrl),
+        fileExtension: "txt"
+      };
+    }
+
+    if (lowerResolvedUrl.endsWith(".zip")) {
+      return await extractTxtFromZipResponse(
+        nestedResponse,
+        resolvedFileUrl,
+        "directory",
+        id,
+        { requireVersionLabel: false }
+      );
+    }
+
+    throw new Error(`Unsupported file type found in directory: ${resolvedFileUrl}`);
+  }
+
+  // Case 4: URL has no .txt / .zip / /_/ suffix (e.g. /user_file/download/N).
+  // Sniff Content-Disposition, Content-Type and body magic bytes to decide.
+  return await extractFromUnknownResponse(finalResponse, finalUrl, source, id, {
+    requireVersionLabel: false
+  });
+}
+
 // Extracts the filename from a URL, ignoring query parameters
 function getFilenameFromUrl(url) {
   return url.split("?")[0].split("/").pop() || "unknown_23andme.txt";
 }
 
-// Extracts a .txt file from a ZIP response, ensuring it contains a supported genome version label
-async function extractTxtFromZipResponse(response, zipUrl, source, id = null) {
+// Pulls a filename out of a Content-Disposition header, if present.
+function getFilenameFromContentDisposition(header) {
+  if (!header) return null;
+  const starMatch = header.match(/filename\*\s*=\s*(?:UTF-8'')?([^;]+)/i);
+  if (starMatch) {
+    try { return decodeURIComponent(starMatch[1].trim().replace(/^"|"$/g, "")); } catch { /* fall through */ }
+  }
+  const plainMatch = header.match(/filename\s*=\s*"?([^";]+)"?/i);
+  return plainMatch ? plainMatch[1].trim() : null;
+}
+
+// Handles responses where the URL extension is unknown (e.g. /user_file/download/N).
+// Decides between ZIP and plain TXT using headers + ZIP magic bytes.
+async function extractFromUnknownResponse(response, finalUrl, source, id = null, options = {}) {
+  const { requireVersionLabel = true } = options;
+
+  const dispositionName = getFilenameFromContentDisposition(response.headers.get("content-disposition"));
+  const contentType = (response.headers.get("content-type") || "").toLowerCase();
+
+  const buffer = await response.arrayBuffer();
+  if (!buffer || buffer.byteLength === 0) {
+    throw new Error(`Response from ${source} is empty`);
+  }
+
+  const bytes = new Uint8Array(buffer);
+  const isZipBuffer = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+
+  const looksZip =
+    isZipBuffer ||
+    contentType.includes("zip") ||
+    (dispositionName && /\.zip$/i.test(dispositionName));
+
+  if (looksZip) {
+    // Re-wrap the already-read buffer as a Response so extractTxtFromZipResponse can consume it.
+    const zipResponse = new Response(buffer);
+    const zipUrl = dispositionName
+      ? new URL(dispositionName, finalUrl).href
+      : finalUrl;
+    return await extractTxtFromZipResponse(zipResponse, zipUrl, source, id, { requireVersionLabel });
+  }
+
+  // Treat as plain text.
+  const txt = new TextDecoder("utf-8").decode(buffer);
+  if (!txt || !txt.trim()) {
+    throw new Error(`TXT response from ${source} is empty`);
+  }
+
+  const filename = dispositionName || getFilenameFromUrl(finalUrl);
+  if (requireVersionLabel) {
+    assertSupportedGenomeVersionLabel(filename, "filename");
+  }
+
+  return {
+    id,
+    txt,
+    url: finalUrl,
+    filename,
+    fileExtension: "txt"
+  };
+}
+
+// Extracts a .txt file from a ZIP response. By default requires the entry's name
+// to include a supported genome version label (v3/v4/v5); pass
+// { requireVersionLabel: false } to accept any .txt entry.
+async function extractTxtFromZipResponse(response, zipUrl, source, id = null, options = {}) {
+  const { requireVersionLabel = true } = options;
   const buffer = await response.arrayBuffer();
 
   if (!buffer || buffer.byteLength === 0) {
@@ -15516,11 +15697,15 @@ async function extractTxtFromZipResponse(response, zipUrl, source, id = null) {
     .find(file =>
       !file.dir &&
       file.name.toLowerCase().endsWith(".txt") &&
-      hasSupportedGenomeVersionLabel(file.name)
+      (!requireVersionLabel || hasSupportedGenomeVersionLabel(file.name))
     );
 
   if (!targetFile) {
-    throw new Error(`No .txt file containing v3, v4, or v5 found inside ZIP from ${zipUrl}`);
+    throw new Error(
+      requireVersionLabel
+        ? `No .txt file containing v3, v4, or v5 found inside ZIP from ${zipUrl}`
+        : `No .txt file found inside ZIP from ${zipUrl}`
+    );
   }
 
   const txt = await targetFile.async("string");
@@ -15539,5 +15724,5 @@ async function extractTxtFromZipResponse(response, zipUrl, source, id = null) {
   };
 }
 
-export { JSZip, allUsersMetaDataByType_fast, fetch23andMeParticipants, fetchAvailableDataTypes, fetchProfile, load23andMeFile, load23andMeFileCloud, parse23Txt, parseParticipantsCloud, resolveDownloadFilenameCloud };
+export { JSZip, allUsersMetaDataByType_fast, fetch23andMeParticipants, fetchAvailableDataTypes, fetchProfile, load23andMeFile, load23andMeFileCloud, load23andMeFileCloud_unknwn, parse23Txt, parseParticipantsCloud, resolveDownloadFilenameCloud };
 //# sourceMappingURL=cloud_sdk.mjs.map
