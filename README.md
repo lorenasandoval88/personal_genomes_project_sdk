@@ -30,7 +30,7 @@ const firstProfile = participants.length ? await sdk.fetchProfile(participants[0
 
 console.log({ participants, firstProfile });
 ```
-
+---
 ## ES6 from npm
 
 Use ES6 modules in two common ways:
@@ -53,9 +53,7 @@ import {
   load23andMeFile
 } from "personal_genomes_project_sdk/cloud_sdk.mjs";
 ```
-
-
-
+---
 
 <h2>Functionality</h2>
 <p>Key features include:</p>
