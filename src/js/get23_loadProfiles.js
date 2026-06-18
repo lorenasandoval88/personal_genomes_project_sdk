@@ -114,9 +114,23 @@ async function displayProfiles() {
         if (sourceStatusEl) sourceStatusEl.textContent = `Source: ${source} (participants: ${participantsSourceLabel}; profiles: ${profilesSourceLabel})`;
 
         renderProfilesTable(profiles);
+
+        return {
+            profiles,
+            source,
+            participantsSource: participantsSourceLabel,
+            profilesSource: profilesSourceLabel,
+            cachedCount,
+            fetchedCount
+        };
     } catch (error) {
         if (sourceStatusEl) sourceStatusEl.textContent = 'Source: unavailable';
         if (container) container.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
+        return {
+            profiles: [],
+            source: 'unavailable',
+            error: error.message
+        };
     }
 }
 

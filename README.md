@@ -144,7 +144,7 @@ These functions are exported and can be accessed through the SDK.
 | `getLastAllUsersSource()` | `/src/js/data/get23_allUsers.js` | sync | Returns the source of the last participant dataset retrieval (cache or network). |
 | `getLastProfileSource()` | `/src/js/data/get23_allUsers.js` | sync | Returns the source of the last profile retrieval. |
 | `load23andMeFile(path, id, cache)` | `/src/js/get23_loadTxts.js` | async | Loads and parses a 23andMe TXT/ZIP source. Set `cache=false` to bypass LocalForage reads/writes. |
-| `loadStats()` | `/src/js/get23_loadStats.js` | async | Loads statistics about available genetic datasets (exposed through `sdk.js`). |
+| `displayStats()` | `/src/js/get23_loadStats.js` | async | Loads statistics about available genetic datasets (exposed through `sdk.js`). |
 
 ---
 

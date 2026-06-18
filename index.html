@@ -67,7 +67,7 @@
 
                 <pre class="bg-light border rounded p-3"><code>try {
                 const personal_genome_sdk = await import("https://lorenasandoval88.github.io/personal_genomes_project_sdk/dist/sdk.mjs");
-                let users = await  personal_genome_sdk.loadStats();
+                let users = await  personal_genome_sdk.displayStats();
                 console.log("PGS categories loaded and cached in local storage:", users);
                 } catch (error) {
                     console.error("Failed to load users:", error);

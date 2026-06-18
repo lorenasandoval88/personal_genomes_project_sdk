@@ -2910,7 +2910,7 @@ async function setCachedStats(stats, source) {
     });
 }
 
-async function loadStats(options = {}) {
+async function displayStats(options = {}) {
     const forceRefresh = options.forceRefresh === true;
     const sourceStatusEl = document.getElementById("sourceStatus");
     const forceRefreshBtn = document.getElementById("forceRefreshStatsBtn");
@@ -3045,15 +3045,15 @@ async function loadStats(options = {}) {
 
 const forceRefreshBtn = document.getElementById("forceRefreshStatsBtn");
 if (forceRefreshBtn) {
-    forceRefreshBtn.addEventListener("click", () => loadStats({ forceRefresh: true }));
+    forceRefreshBtn.addEventListener("click", () => displayStats({ forceRefresh: true }));
 }
 
 // Expose for dev console
 if (typeof window !== "undefined") {
-    window.loadStats = loadStats;
+    window.displayStats = displayStats;
     window.getCachedStats = getCachedStats;
     window.setCachedStats = setCachedStats;
 }
 
-export { loadStats };
+export { displayStats };
 //# sourceMappingURL=loadStats.bundle.mjs.map

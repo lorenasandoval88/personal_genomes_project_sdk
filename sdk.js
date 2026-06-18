@@ -11,7 +11,7 @@ export {
 }
 from './src/js/get23_loadTxts.js';
 export {
-  loadStats
+  displayStats
 }
 from './src/js/get23_loadStats.js';
 export {

@@ -1,10 +1,10 @@
-import { loadStats } from "./get23_loadStats.js";
+import { displayStats } from "./get23_loadStats.js";
 import { displayProfiles } from "./get23_loadProfiles.js";
 
 export async function init() {
   try {
     await Promise.allSettled([
-      loadStats(),
+      displayStats(),
       displayProfiles()
     ]);
   } catch (err) {
@@ -14,7 +14,7 @@ export async function init() {
 
 if (typeof window !== "undefined") {
   window.init = init;
-  window.loadStats = loadStats;
+  window.displayStats = displayStats;
   window.displayProfiles = displayProfiles;
 }
 

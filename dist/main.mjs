@@ -2910,7 +2910,7 @@ async function setCachedStats(stats, source) {
     });
 }
 
-async function loadStats(options = {}) {
+async function displayStats(options = {}) {
     const forceRefresh = options.forceRefresh === true;
     const sourceStatusEl = document.getElementById("sourceStatus");
     const forceRefreshBtn = document.getElementById("forceRefreshStatsBtn");
@@ -3045,12 +3045,12 @@ async function loadStats(options = {}) {
 
 const forceRefreshBtn = document.getElementById("forceRefreshStatsBtn");
 if (forceRefreshBtn) {
-    forceRefreshBtn.addEventListener("click", () => loadStats({ forceRefresh: true }));
+    forceRefreshBtn.addEventListener("click", () => displayStats({ forceRefresh: true }));
 }
 
 // Expose for dev console
 if (typeof window !== "undefined") {
-    window.loadStats = loadStats;
+    window.displayStats = displayStats;
     window.getCachedStats = getCachedStats;
     window.setCachedStats = setCachedStats;
 }
@@ -4054,9 +4054,23 @@ async function displayProfiles() {
         if (sourceStatusEl) sourceStatusEl.textContent = `Source: ${source} (participants: ${participantsSourceLabel}; profiles: ${profilesSourceLabel})`;
 
         renderProfilesTable(profiles);
+
+        return {
+            profiles,
+            source,
+            participantsSource: participantsSourceLabel,
+            profilesSource: profilesSourceLabel,
+            cachedCount,
+            fetchedCount
+        };
     } catch (error) {
         if (sourceStatusEl) sourceStatusEl.textContent = 'Source: unavailable';
         if (container) container.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
+        return {
+            profiles: [],
+            source: 'unavailable',
+            error: error.message
+        };
     }
 }
 
@@ -4069,7 +4083,7 @@ if (typeof window !== "undefined") {
 async function init() {
   try {
     await Promise.allSettled([
-      loadStats(),
+      displayStats(),
       displayProfiles()
     ]);
   } catch (err) {
@@ -4079,7 +4093,7 @@ async function init() {
 
 if (typeof window !== "undefined") {
   window.init = init;
-  window.loadStats = loadStats;
+  window.displayStats = displayStats;
   window.displayProfiles = displayProfiles;
 }
 
