@@ -11,6 +11,8 @@ The toolkit supports participant discovery, profile lookup, summary statistics, 
 ## Live Demo
 
 https://lorenasandoval88.github.io/personal_genomes_project_sdk/
+[<img width="755" height="599" alt="image" src="https://github.com/user-attachments/assets/b67e2a78-9f2f-420f-bd8b-f17945fbcbba" />](https://lorenasandoval88.github.io/personal_genomes_project_sdk/)
+
 ---
 
 ## Documentation
@@ -53,7 +55,7 @@ import {
 ```
 
 
-[<img width="755" height="599" alt="image" src="https://github.com/user-attachments/assets/b67e2a78-9f2f-420f-bd8b-f17945fbcbba" />](https://lorenasandoval88.github.io/personal_genomes_project_sdk/)
+
 
 <h2>Functionality</h2>
 <p>Key features include:</p>
