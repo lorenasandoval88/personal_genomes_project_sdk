@@ -448,9 +448,8 @@ async function load23andMeFile(path, id = null) {
 
 async function fetch23andMeParticipants(limit = 10, options = {}) {
 
-  const {
-    batchSize = 10
-  } = options;
+   const { batchSize = 10 } = options;
+
 // batchSize is only used for a progress console.log. So passing batchSize: 10 does not parallelize HEAD requests — it just controls log frequency.
 // If you want real batching, parse all rows first, then run HEAD requests with Promise.all over chunks of batchSize.
   const response = await fetch(PGP_23ANDME_URL);
@@ -467,22 +466,18 @@ async function fetch23andMeParticipants(limit = 10, options = {}) {
 
 //Parse HTML to extract participant data - used in fetch23andMeParticipants()
 async function parseParticipantsCloud(html, limit = 10, options = {}) {
-  const {
-    batchSize = 10
-  } = options;
 
+  const { batchSize = 10 } = options;
   const participants = [];
 
   // Match table rows
   const rowMatches = html.match(/<tr[\s\S]*?<\/tr>/gi) || [];
 
+
+  // Only keep rows that look like real file rows
   for (const rowHtml of rowMatches) {
     if (participants.length >= limit) break;
-
-    // Only keep rows that look like real file rows
-    if (!rowHtml.includes("user_file") && !rowHtml.includes("profile")) {
-      continue;
-    }
+    if (!rowHtml.includes("user_file") && !rowHtml.includes("profile")) continue;
 
     // Extract table cells
     const cells = [...rowHtml.matchAll(/<td[\s\S]*?<\/td>/gi)].map(m => m[0]);
@@ -492,25 +487,31 @@ async function parseParticipantsCloud(html, limit = 10, options = {}) {
     // Participant link is usually in cells[1]
     const participantHrefMatch = cells[1].match(/href="([^"]+)"/i);
     const participantTextMatch = cells[1].match(/<a[^>]*>([\s\S]*?)<\/a>/i);
-
     if (!participantHrefMatch || !participantTextMatch) continue;
 
+    const dataType = stripTags(cells[3]);
+    if (!/23andme/i.test(dataType)) continue;
+
     const id = stripTags(participantTextMatch[1]);
-    const profileUrl = new URL(participantHrefMatch[1], PGP_BASE_URL).href;
+    const profileUrl = new URL(decodeHtmlEntities(participantHrefMatch[1]), PGP_BASE_URL).href;
 
     // Download link is usually in cells[6]
-    const downloadHrefMatch = cells[6].match(/href="([^"]+)"/i);
-    const downloadUrl = downloadHrefMatch ?
-      new URL(downloadHrefMatch[1], PGP_BASE_URL).href :
-      null;
+    const downloadHrefMatch = cells[6].match(/href=["']([^"']+)["']/i);
+    const downloadUrl = downloadHrefMatch
+      ? new URL(decodeHtmlEntities(downloadHrefMatch[1]), PGP_BASE_URL).href
+      : null;
 
     const publishedDate = stripTags(cells[2]);
-    const dataType = stripTags(cells[3]);
     const name = stripTags(cells[5]);
 
     // Resolve actual file URL and filename
-    const resolved = await resolveDownloadFilenameCloud(downloadUrl);
-
+    let resolved = { finalUrl: null, fileName: null, fileExtension: null };
+      try {
+        resolved = await resolveDownloadFilenameCloud(downloadUrl);
+      } catch (err) {
+        console.warn(`parseParticipantsCloud: resolve failed for ${id}: ${err.message}`);
+      }
+      
     participants.push({
       id,
       profileUrl,
@@ -623,122 +624,6 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
 
 // This is the main txt downloader
 //downloads the actual 23andMe text from direct .txt, .zip, or /_/ directory
-async function load23andMeFileCloud(path, id = null) {
-  if (typeof path !== "string") {
-    throw new TypeError("load23andMeFileCloud expects a URL string");
-  }
-
-  if (!/^https?:\/\//i.test(path)) {
-    throw new Error(`Cloud version expects a remote URL, got: ${path}`);
-  }
-
-  if (!id) {
-    const idMatch = path.match(/hu[A-Z0-9]+/i);
-    id = idMatch ? idMatch[0] : null;
-  }
-
-  const {
-    response: finalResponse,
-    finalUrl,
-    source
-  } = await fetchDirect(path);
-
-  if (!finalResponse.ok) {
-    throw new Error(`Failed to load ${path}: HTTP ${finalResponse.status}`);
-  }
-
-  const lowerFinalUrl = finalUrl.toLowerCase().split("?")[0];
-
-  // Case 1: direct TXT
-  if (lowerFinalUrl.endsWith(".txt")) {
-    assertSupportedGenomeVersionLabel(finalUrl, "href");
-
-    const txt = await finalResponse.text();
-
-    if (!txt || !txt.trim()) {
-      throw new Error(`TXT response from ${source} is empty`);
-    }
-
-    return {
-      id,
-      txt,
-      url: finalUrl,
-      filename: getFilenameFromUrl(finalUrl),
-      fileExtension: "txt"
-    };
-  }
-
-  // Case 2: direct ZIP
-  if (lowerFinalUrl.endsWith(".zip")) {
-    return await extractTxtFromZipResponse(finalResponse, finalUrl, source, id);
-  }
-
-  // Case 3: directory listing /_/
-  if (lowerFinalUrl.endsWith("/_/")) {
-    const html = await finalResponse.text();
-
-    if (!html || !html.trim()) {
-      throw new Error(`Directory listing from ${source} is empty`);
-    }
-
-    const hrefs = [...html.matchAll(/href="([^"]+)"/gi)].map(match => match[1]);
-
-    const preferredHref =
-      hrefs.find(href => /\.txt$/i.test(href) && hasSupportedGenomeVersionLabel(href)) ||
-      hrefs.find(href => /\.zip$/i.test(href) && hasSupportedGenomeVersionLabel(href));
-
-    if (!preferredHref) {
-      throw new Error(`No .txt or .zip file containing v3, v4, or v5 found in directory listing for ${path}`);
-    }
-
-    const resolvedFileUrl = new URL(preferredHref, finalUrl).href;
-    const nestedResponse = await fetch(resolvedFileUrl, {
-      redirect: "follow"
-    });
-
-    if (!nestedResponse.ok) {
-      throw new Error(`Failed to fetch file from directory: HTTP ${nestedResponse.status}`);
-    }
-
-    const lowerResolvedUrl = resolvedFileUrl.toLowerCase().split("?")[0];
-
-    if (lowerResolvedUrl.endsWith(".txt")) {
-      assertSupportedGenomeVersionLabel(resolvedFileUrl, "href");
-
-      const txt = await nestedResponse.text();
-
-      if (!txt || !txt.trim()) {
-        throw new Error(`Directory TXT file is empty: ${resolvedFileUrl}`);
-      }
-
-      return {
-        id,
-        txt,
-        url: resolvedFileUrl,
-        filename: getFilenameFromUrl(resolvedFileUrl),
-        fileExtension: "txt"
-      };
-    }
-
-    if (lowerResolvedUrl.endsWith(".zip")) {
-      return await extractTxtFromZipResponse(
-        nestedResponse,
-        resolvedFileUrl,
-        "directory",
-        id
-      );
-    }
-
-    throw new Error(`Unsupported file type found in directory: ${resolvedFileUrl}`);
-  }
-
-  throw new Error(`Unsupported final URL type from ${source}: ${finalUrl}`);
-}
-
-
-////////////////////////////////////////////////////////////////
-
-// Same as load23andMeFileCloud but accepts any .txt or .zip without requiring
 // a v3/v4/v5 genome-version label in the filename or zip entry.
 // One warning
 // This function will accept any .txt, not just confirmed 23andMe genotype TXT.
@@ -1061,6 +946,5 @@ export {
   fetch23andMeParticipants,
   parseParticipantsCloud,
   resolveDownloadFilenameCloud,
-  load23andMeFileCloud,
   load23andMeFileCloud_unknwn
 };
