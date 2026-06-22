@@ -14808,7 +14808,7 @@ var libExports = requireLib();
 var JSZip = /*@__PURE__*/getDefaultExportFromCjs(libExports);
 
 const PGP_BASE_URL = "https://my.pgp-hms.org";
-const PGP_23ANDME_URL = `${PGP_BASE_URL}/public_genetic_data?utf8=%E2%9C%93&data_type=23andMe&commit=Search`; 
+const PGP_23ANDME_URL = `${PGP_BASE_URL}/public_genetic_data?utf8=%E2%9C%93&data_type=23andMe&commit=Search`;
 
 function hasSupportedGenomeVersionLabel(value = "") {
   return /(^|[^a-z0-9])v(?:3|4|5)(?=[^a-z0-9]|$)/i.test(String(value));
@@ -14868,7 +14868,7 @@ function normalizeDataTypeValue(label) {
 function dedupeByValue(items) {
   const seen = new Map();
   for (const item of items) {
-    if (item?.value && !seen.has(item.value)) {
+    if (item ?.value && !seen.has(item.value)) {
       seen.set(item.value, item);
     }
   }
@@ -14922,11 +14922,15 @@ function splitDatatypeBlock(block) {
 }
 
 async function fetchDirect(target, options = {}) {
-  const { acceptJson = false, fetchImpl = fetch } = options;
+  const {
+    acceptJson = false, fetchImpl = fetch
+  } = options;
 
   const response = await fetchImpl(target, {
     redirect: "follow",
-    headers: acceptJson ? { Accept: "application/json" } : undefined
+    headers: acceptJson ? {
+      Accept: "application/json"
+    } : undefined
   });
 
   if (!response.ok) {
@@ -14960,7 +14964,7 @@ function parseParticipantsFast(html, source = "unknown") {
     if (!/23andme/i.test(dataType)) continue;
 
     const downloadLinkMatch = cells[6].match(/<a[^>]*href=["']([^"']+)["']/i);
-    const relativeDownload = downloadLinkMatch?.[1] || null;
+    const relativeDownload = downloadLinkMatch ?.[1] || null;
     const downloadUrl = relativeDownload ? new URL(relativeDownload, PGP_BASE_URL).href : null;
 
     participants.push({
@@ -15009,7 +15013,10 @@ async function fetchAvailableDataTypes({
         const full = new URL(decodeHtmlEntities(match[1]), url);
         const value = (full.searchParams.get("data_type") || "").trim();
         const label = stripTags(match[2]);
-        return { value, label: label || value };
+        return {
+          value,
+          label: label || value
+        };
       } catch {
         return null;
       }
@@ -15043,7 +15050,10 @@ async function fetchAvailableDataTypes({
 async function allUsersMetaDataByType_fast(dataType = "23andMe") {
   const pgpUrl = `${PGP_BASE_URL}/public_genetic_data?utf8=%E2%9C%93&data_type=${encodeURIComponent(dataType)}&commit=Search`;
 
-  const { response, source } = await fetchDirect(pgpUrl);
+  const {
+    response,
+    source
+  } = await fetchDirect(pgpUrl);
 
   const html = await response.text();
   return parseParticipantsFast(html, source);
@@ -15053,7 +15063,11 @@ async function fetchProfile(id) {
   const resolvedId = typeof id === "string" && id.trim() ? id.trim() : "hu09B28E";
   const profileUrl = `https://my.pgp-hms.org/profile/${resolvedId}.json`;
 
-  const { response } = await fetchDirect(profileUrl, { acceptJson: true });
+  const {
+    response
+  } = await fetchDirect(profileUrl, {
+    acceptJson: true
+  });
 
   return response.json();
 }
@@ -15117,7 +15131,11 @@ async function load23andMeFile(path, id = null) {
     return parse23Txt(txt, path);
   }
 
-  const { response: finalResponse, finalUrl, source } = await fetchDirect(path);
+  const {
+    response: finalResponse,
+    finalUrl,
+    source
+  } = await fetchDirect(path);
 
   if (finalUrl.endsWith(".txt")) {
     assertSupportedGenomeVersionLabel(finalUrl, "href");
@@ -15233,26 +15251,31 @@ async function load23andMeFile(path, id = null) {
 // resolveDownloadFilenameCloud() follows redirects to get the real URL/filename, and 
 // load23andMeFileCloud() downloads the actual 23andMe text from direct .txt, .zip, or /_/ directory links.
 
- // PGP 23andMe HTML page → participant list. Uses parseParticipants() and resolveDownloadFilename() to get actual filenames, limit - Number of participants to return (default: 10)
-async function fetch23andMeParticipants(limit = 10, options = {}) {
-  const { batchSize = 10 } = options;
+// PGP 23andMe HTML page → participant list. Uses parseParticipants() and resolveDownloadFilename() to get actual filenames, limit - Number of participants to return (default: 10)
 
+async function fetch23andMeParticipants(limit = 10, options = {}) {
+  const {
+    batchSize = 10
+  } = options;
+// batchSize is only used for a progress console.log. So passing batchSize: 10 does not parallelize HEAD requests — it just controls log frequency.
+// If you want real batching, parse all rows first, then run HEAD requests with Promise.all over chunks of batchSize.
   const response = await fetch(PGP_23ANDME_URL);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch PGP 23andMe page: HTTP ${response.status}`);
   }
-
   const html = await response.text();
-
   const participants = await parseParticipantsCloud(html, limit, { batchSize });
-
   return participants;
 }
 
- //Parse HTML to extract participant data 
+
+
+//Parse HTML to extract participant data - used in fetch23andMeParticipants()
 async function parseParticipantsCloud(html, limit = 10, options = {}) {
-  const { batchSize = 10 } = options;
+  const {
+    batchSize = 10
+  } = options;
 
   const participants = [];
 
@@ -15283,9 +15306,9 @@ async function parseParticipantsCloud(html, limit = 10, options = {}) {
 
     // Download link is usually in cells[6]
     const downloadHrefMatch = cells[6].match(/href="([^"]+)"/i);
-    const downloadUrl = downloadHrefMatch
-      ? new URL(downloadHrefMatch[1], PGP_BASE_URL).href
-      : null;
+    const downloadUrl = downloadHrefMatch ?
+      new URL(downloadHrefMatch[1], PGP_BASE_URL).href :
+      null;
 
     const publishedDate = stripTags(cells[2]);
     const dataType = stripTags(cells[3]);
@@ -15314,11 +15337,16 @@ async function parseParticipantsCloud(html, limit = 10, options = {}) {
   return participants;
 }
 
-//follows redirects to get the real URL/filename
+
+//follows redirects to get the real URL/filename - used in parseParticipantsCloud() 
 //participant row → metadata + downloadUrl + finalUrl + fileName
 async function resolveDownloadFilenameCloud(downloadUrl) {
   if (!downloadUrl) {
-    return { finalUrl: null, fileName: null, fileExtension: null };
+    return {
+      finalUrl: null,
+      fileName: null,
+      fileExtension: null
+    };
   }
 
   // HEAD avoids downloading the (potentially large) file body just to read redirects.
@@ -15329,21 +15357,33 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
 
   if (!response.ok) {
     console.warn(`resolveDownloadFilenameCloud: HTTP ${response.status} for ${downloadUrl}`);
-    return { finalUrl: null, fileName: null, fileExtension: null };
+    return {
+      finalUrl: null,
+      fileName: null,
+      fileExtension: null
+    };
   }
 
   const finalUrl = response.url || downloadUrl;
   const cleanUrl = finalUrl.split("?")[0];
 
   let fileName = cleanUrl.split("/").pop() || null;
-  let fileExtension = fileName?.match(/\.(txt|zip)$/i)?.[1]?.toLowerCase() || null;
+  const match = fileName ?.match(/(?:_|\.)(vcf\.txt)$|\.(vcf\.gz|vcf|txt|zip)$/i);
+  let fileExtension = match ?.slice(1).find(Boolean) ?.toLowerCase() || null;
+  //fileName?.match(/\.(txt|zip)$/i)?.[1]?.toLowerCase() || null;
 
   // If final URL is a directory listing like /_/, we need the HTML body, so do a GET now.
   if (finalUrl.endsWith("/_/")) {
-    response = await fetch(finalUrl, { redirect: "follow" });
+    response = await fetch(finalUrl, {
+      redirect: "follow"
+    });
     if (!response.ok) {
       console.warn(`resolveDownloadFilenameCloud: directory GET HTTP ${response.status} for ${finalUrl}`);
-      return { finalUrl, fileName: null, fileExtension: null };
+      return {
+        finalUrl,
+        fileName: null,
+        fileExtension: null
+      };
     }
     const html = await response.text();
 
@@ -15356,13 +15396,17 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
       hrefs.find(h => /\.zip$/i.test(h));
 
     if (!preferredHref) {
-      return { finalUrl, fileName: null, fileExtension: null };
+      return {
+        finalUrl,
+        fileName: null,
+        fileExtension: null
+      };
     }
 
     const resolvedFileUrl = new URL(preferredHref, finalUrl).href;
     const resolvedFileName = resolvedFileUrl.split("?")[0].split("/").pop();
     const resolvedExtension =
-      resolvedFileName?.match(/\.(txt|zip)$/i)?.[1]?.toLowerCase() || null;
+      resolvedFileName ?.match(/\.(txt|zip)$/i) ?.[1] ?.toLowerCase() || null;
 
     return {
       finalUrl: resolvedFileUrl,
@@ -15379,8 +15423,7 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
 }
 
 
-
-// This is the main downloader.
+// This is the main txt downloader
 //downloads the actual 23andMe text from direct .txt, .zip, or /_/ directory
 async function load23andMeFileCloud(path, id = null) {
   if (typeof path !== "string") {
@@ -15396,7 +15439,11 @@ async function load23andMeFileCloud(path, id = null) {
     id = idMatch ? idMatch[0] : null;
   }
 
-  const { response: finalResponse, finalUrl, source } = await fetchDirect(path);
+  const {
+    response: finalResponse,
+    finalUrl,
+    source
+  } = await fetchDirect(path);
 
   if (!finalResponse.ok) {
     throw new Error(`Failed to load ${path}: HTTP ${finalResponse.status}`);
@@ -15447,7 +15494,9 @@ async function load23andMeFileCloud(path, id = null) {
     }
 
     const resolvedFileUrl = new URL(preferredHref, finalUrl).href;
-    const nestedResponse = await fetch(resolvedFileUrl, { redirect: "follow" });
+    const nestedResponse = await fetch(resolvedFileUrl, {
+      redirect: "follow"
+    });
 
     if (!nestedResponse.ok) {
       throw new Error(`Failed to fetch file from directory: HTTP ${nestedResponse.status}`);
@@ -15488,8 +15537,13 @@ async function load23andMeFileCloud(path, id = null) {
   throw new Error(`Unsupported final URL type from ${source}: ${finalUrl}`);
 }
 
+
+////////////////////////////////////////////////////////////////
+
 // Same as load23andMeFileCloud but accepts any .txt or .zip without requiring
 // a v3/v4/v5 genome-version label in the filename or zip entry.
+// One warning
+// This function will accept any .txt, not just confirmed 23andMe genotype TXT.
 async function load23andMeFileCloud_unknwn(path, id = null) {
   if (typeof path !== "string") {
     throw new TypeError("load23andMeFileCloud_unknwn expects a URL string");
@@ -15504,7 +15558,11 @@ async function load23andMeFileCloud_unknwn(path, id = null) {
     id = idMatch ? idMatch[0] : null;
   }
 
-  const { response: finalResponse, finalUrl, source } = await fetchDirect(path);
+  const {
+    response: finalResponse,
+    finalUrl,
+    source
+  } = await fetchDirect(path);
 
   if (!finalResponse.ok) {
     throw new Error(`Failed to load ${path}: HTTP ${finalResponse.status}`);
@@ -15535,8 +15593,9 @@ async function load23andMeFileCloud_unknwn(path, id = null) {
       finalResponse,
       finalUrl,
       source,
-      id,
-      { requireVersionLabel: false }
+      id, {
+        requireVersionLabel: false
+      }
     );
   }
 
@@ -15559,7 +15618,9 @@ async function load23andMeFileCloud_unknwn(path, id = null) {
     }
 
     const resolvedFileUrl = new URL(preferredHref, finalUrl).href;
-    const nestedResponse = await fetch(resolvedFileUrl, { redirect: "follow" });
+    const nestedResponse = await fetch(resolvedFileUrl, {
+      redirect: "follow"
+    });
 
     if (!nestedResponse.ok) {
       throw new Error(`Failed to fetch file from directory: HTTP ${nestedResponse.status}`);
@@ -15588,8 +15649,9 @@ async function load23andMeFileCloud_unknwn(path, id = null) {
         nestedResponse,
         resolvedFileUrl,
         "directory",
-        id,
-        { requireVersionLabel: false }
+        id, {
+          requireVersionLabel: false
+        }
       );
     }
 
@@ -15613,7 +15675,10 @@ function getFilenameFromContentDisposition(header) {
   if (!header) return null;
   const starMatch = header.match(/filename\*\s*=\s*(?:UTF-8'')?([^;]+)/i);
   if (starMatch) {
-    try { return decodeURIComponent(starMatch[1].trim().replace(/^"|"$/g, "")); } catch { /* fall through */ }
+    try {
+      return decodeURIComponent(starMatch[1].trim().replace(/^"|"$/g, ""));
+    } catch {
+      /* fall through */ }
   }
   const plainMatch = header.match(/filename\s*=\s*"?([^";]+)"?/i);
   return plainMatch ? plainMatch[1].trim() : null;
@@ -15622,7 +15687,9 @@ function getFilenameFromContentDisposition(header) {
 // Handles responses where the URL extension is unknown (e.g. /user_file/download/N).
 // Decides between ZIP and plain TXT using headers + ZIP magic bytes.
 async function extractFromUnknownResponse(response, finalUrl, source, id = null, options = {}) {
-  const { requireVersionLabel = true } = options;
+  const {
+    requireVersionLabel = true
+  } = options;
 
   const dispositionName = getFilenameFromContentDisposition(response.headers.get("content-disposition"));
   const contentType = (response.headers.get("content-type") || "").toLowerCase();
@@ -15643,10 +15710,12 @@ async function extractFromUnknownResponse(response, finalUrl, source, id = null,
   if (looksZip) {
     // Re-wrap the already-read buffer as a Response so extractTxtFromZipResponse can consume it.
     const zipResponse = new Response(buffer);
-    const zipUrl = dispositionName
-      ? new URL(dispositionName, finalUrl).href
-      : finalUrl;
-    return await extractTxtFromZipResponse(zipResponse, zipUrl, source, id, { requireVersionLabel });
+    const zipUrl = dispositionName ?
+      new URL(dispositionName, finalUrl).href :
+      finalUrl;
+    return await extractTxtFromZipResponse(zipResponse, zipUrl, source, id, {
+      requireVersionLabel
+    });
   }
 
   // Treat as plain text.
@@ -15673,7 +15742,9 @@ async function extractFromUnknownResponse(response, finalUrl, source, id = null,
 // to include a supported genome version label (v3/v4/v5); pass
 // { requireVersionLabel: false } to accept any .txt entry.
 async function extractTxtFromZipResponse(response, zipUrl, source, id = null, options = {}) {
-  const { requireVersionLabel = true } = options;
+  const {
+    requireVersionLabel = true
+  } = options;
   const buffer = await response.arrayBuffer();
 
   if (!buffer || buffer.byteLength === 0) {
@@ -15702,9 +15773,9 @@ async function extractTxtFromZipResponse(response, zipUrl, source, id = null, op
 
   if (!targetFile) {
     throw new Error(
-      requireVersionLabel
-        ? `No .txt file containing v3, v4, or v5 found inside ZIP from ${zipUrl}`
-        : `No .txt file found inside ZIP from ${zipUrl}`
+      requireVersionLabel ?
+      `No .txt file containing v3, v4, or v5 found inside ZIP from ${zipUrl}` :
+      `No .txt file found inside ZIP from ${zipUrl}`
     );
   }
 
