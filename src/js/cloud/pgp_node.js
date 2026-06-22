@@ -61,7 +61,7 @@ function normalizeDataTypeValue(label) {
 function dedupeByValue(items) {
   const seen = new Map();
   for (const item of items) {
-    if (item ?.value && !seen.has(item.value)) {
+    if (item?.value && !seen.has(item.value)) {
       seen.set(item.value, item);
     }
   }
@@ -157,7 +157,7 @@ function parseParticipantsFast(html, source = "unknown") {
     if (!/23andme/i.test(dataType)) continue;
 
     const downloadLinkMatch = cells[6].match(/<a[^>]*href=["']([^"']+)["']/i);
-    const relativeDownload = downloadLinkMatch ?.[1] || null;
+    const relativeDownload = downloadLinkMatch?.[1] || null;
     const downloadUrl = relativeDownload ? new URL(relativeDownload, PGP_BASE_URL).href : null;
 
     participants.push({
@@ -447,6 +447,7 @@ async function load23andMeFile(path, id = null) {
 // PGP 23andMe HTML page → participant list. Uses parseParticipants() and resolveDownloadFilename() to get actual filenames, limit - Number of participants to return (default: 10)
 
 async function fetch23andMeParticipants(limit = 10, options = {}) {
+
   const {
     batchSize = 10
   } = options;
@@ -561,8 +562,8 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
   const cleanUrl = finalUrl.split("?")[0];
 
   let fileName = cleanUrl.split("/").pop() || null;
-  const match = fileName ?.match(/(?:_|\.)(vcf\.txt)$|\.(vcf\.gz|vcf|txt|zip)$/i);
-  let fileExtension = match ?.slice(1).find(Boolean) ?.toLowerCase() || null;
+  const match = fileName?.match(/(?:_|\.)(vcf\.txt)$|\.(vcf\.gz|vcf|txt|zip)$/i);
+  let fileExtension = match?.slice(1).find(Boolean)?.toLowerCase() || null;
   //fileName?.match(/\.(txt|zip)$/i)?.[1]?.toLowerCase() || null;
 
   // If final URL is a directory listing like /_/, we need the HTML body, so do a GET now.
@@ -585,6 +586,9 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
     const preferredHref =
       hrefs.find(h => /\.txt$/i.test(h) && hasSupportedGenomeVersionLabel(h)) ||
       hrefs.find(h => /\.zip$/i.test(h) && hasSupportedGenomeVersionLabel(h)) ||
+      hrefs.find(h => /\.vcf\.gz$/i.test(h)) ||
+      hrefs.find(h => /\.vcf$/i.test(h)) ||
+      hrefs.find(h => /(?:_vcf|\.vcf)\.txt$/i.test(h)) ||
       hrefs.find(h => /\.txt$/i.test(h)) ||
       hrefs.find(h => /\.zip$/i.test(h));
 
@@ -598,9 +602,10 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
 
     const resolvedFileUrl = new URL(preferredHref, finalUrl).href;
     const resolvedFileName = resolvedFileUrl.split("?")[0].split("/").pop();
-    const resolvedExtension =
-      resolvedFileName ?.match(/\.(txt|zip)$/i) ?.[1] ?.toLowerCase() || null;
 
+    const resolvedMatch = resolvedFileName?.match(/(?:_|\.)(vcf\.txt)$|\.(vcf\.gz|vcf|txt|zip)$/i);
+    const resolvedExtension =  resolvedMatch?.slice(1).find(Boolean)?.toLowerCase() || null;
+  
     return {
       finalUrl: resolvedFileUrl,
       fileName: resolvedFileName,
@@ -803,6 +808,9 @@ async function load23andMeFileCloud_unknwn(path, id = null) {
     const hrefs = [...html.matchAll(/href="([^"]+)"/gi)].map(match => match[1]);
 
     const preferredHref =
+      hrefs.find(href => /\.vcf\.gz$/i.test(href)) ||
+      hrefs.find(href => /\.vcf$/i.test(href)) ||
+      hrefs.find(href => /(?:_vcf|\.vcf)\.txt$/i.test(href)) ||
       hrefs.find(href => /\.txt$/i.test(href)) ||
       hrefs.find(href => /\.zip$/i.test(href));
 
@@ -820,6 +828,61 @@ async function load23andMeFileCloud_unknwn(path, id = null) {
     }
 
     const lowerResolvedUrl = resolvedFileUrl.toLowerCase().split("?")[0];
+
+
+    // VCF.GZ file: save as binary gzip
+if (lowerResolvedUrl.endsWith(".vcf.gz")) {
+  const buffer = Buffer.from(await nestedResponse.arrayBuffer());
+
+  if (!buffer || buffer.length === 0) {
+    throw new Error(`Directory VCF.GZ file is empty: ${resolvedFileUrl}`);
+  }
+
+  return {
+    id,
+    buffer,
+    url: resolvedFileUrl,
+    filename: getFilenameFromUrl(resolvedFileUrl),
+    fileExtension: "vcf.gz",
+  };
+}
+
+// VCF file: save as text
+if (lowerResolvedUrl.endsWith(".vcf")) {
+  const txt = await nestedResponse.text();
+
+  if (!txt || !txt.trim()) {
+    throw new Error(`Directory VCF file is empty: ${resolvedFileUrl}`);
+  }
+
+  return {
+    id,
+    txt,
+    url: resolvedFileUrl,
+    filename: getFilenameFromUrl(resolvedFileUrl),
+    fileExtension: "vcf",
+  };
+}
+
+// VCF stored as .txt, for example *_vcf.txt
+if (lowerResolvedUrl.endsWith("_vcf.txt") || lowerResolvedUrl.endsWith(".vcf.txt")) {
+  const txt = await nestedResponse.text();
+
+  if (!txt || !txt.trim()) {
+    throw new Error(`Directory VCF TXT file is empty: ${resolvedFileUrl}`);
+  }
+
+  const originalName = getFilenameFromUrl(resolvedFileUrl);
+  const vcfName = originalName.replace(/(?:_vcf|\.vcf)\.txt$/i, ".vcf");
+
+  return {
+    id,
+    txt,
+    url: resolvedFileUrl,
+    filename: vcfName,
+    fileExtension: "vcf.txt",
+  };
+}
 
     if (lowerResolvedUrl.endsWith(".txt")) {
       const txt = await nestedResponse.text();
