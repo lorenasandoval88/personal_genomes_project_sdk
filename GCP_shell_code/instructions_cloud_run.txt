@@ -1,0 +1,93 @@
+Since your folder is:
+
+~/all23_files
+
+and your script is index.js, run these commands.
+
+1. Go to the job folder
+cd ~/all23_files
+ls
+
+You should see:
+
+Dockerfile  index.js  package.json
+2. Make sure Dockerfile uses index.js
+cat > Dockerfile <<'EOF'
+FROM node:20-bookworm
+
+WORKDIR /app
+
+COPY package*.json ./
+RUN npm install
+
+COPY . .
+
+CMD ["node", "index.js"]
+EOF
+3. Add .dockerignore
+cat > .dockerignore <<'EOF'
+node_modules
+npm-debug.log
+.git
+EOF
+4. Install locally and test small first
+rm -rf node_modules package-lock.json
+npm install
+BUCKET_NAME=all23_files LIMIT=6 BATCH_SIZE=10 node index.js
+
+Check:
+
+gcloud storage ls gs://all23_files/participant_list/
+gcloud storage ls gs://all23_files/genetic_files/
+5. Build Docker image
+gcloud builds submit --tag gcr.io/personalgenomes/all23-files-job .
+6. Create Cloud Run Job for all files
+
+Use LIMIT=1100 for all PGP 23andMe records:
+
+gcloud run jobs create all23-files-job \
+  --image gcr.io/personalgenomes/all23-files-job \
+  --region us-east4 \
+  --memory 4Gi \
+  --cpu 2 \
+  --task-timeout 3600 \
+  --set-env-vars BUCKET_NAME=all23_files,LIMIT=1100,BATCH_SIZE=10
+
+If the job already exists, run this instead:
+
+gcloud run jobs update all23-files-job \
+  --image gcr.io/personalgenomes/all23-files-job \
+  --region us-east4 \
+  --memory 4Gi \
+  --cpu 2 \
+  --task-timeout 3600 \
+  --set-env-vars BUCKET_NAME=all23_files,LIMIT=1100,BATCH_SIZE=10
+7. Execute the job
+gcloud run jobs execute all23-files-job \
+  --region us-east4 \
+  --wait
+8. Check saved files
+
+Participant metadata:
+
+gcloud storage ls gs://all23_files/participant_list/
+
+Downloaded TXT / ZIP-extracted files:
+
+gcloud storage ls gs://all23_files/genetic_files/ | wc -l
+
+List the first few:
+
+gcloud storage ls gs://all23_files/genetic_files/ | head
+
+Your script will download only:
+
+txt
+zip
+
+and skip:
+
+vcf
+vcf.gz
+vcf.txt
+null
