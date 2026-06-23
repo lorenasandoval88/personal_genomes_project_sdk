@@ -15318,7 +15318,7 @@ async function parseParticipantsCloud(html, limit = 10, options = {}) {
       } catch (err) {
         console.warn(`parseParticipantsCloud: resolve failed for ${id}: ${err.message}`);
       }
-      
+
     participants.push({
       id,
       profileUrl,
@@ -15351,6 +15351,12 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
     };
   }
 
+  const extPattern = /(?:_|\.)(vcf\.txt)$|\.(vcf\.gz|vcf|txt|zip)$/i;
+  const parseExt = (name) => {
+    const m = name?.match(extPattern);
+    return m?.slice(1).find(Boolean)?.toLowerCase() || null;
+  };
+
   // HEAD avoids downloading the (potentially large) file body just to read redirects.
   let response = await fetch(downloadUrl, {
     method: "HEAD",
@@ -15366,13 +15372,40 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
     };
   }
 
-  const finalUrl = response.url || downloadUrl;
-  const cleanUrl = finalUrl.split("?")[0];
+  let finalUrl = response.url || downloadUrl;
+  let cleanUrl = finalUrl.split("?")[0];
 
-  let fileName = cleanUrl.split("/").pop() || null;
-  const match = fileName?.match(/(?:_|\.)(vcf\.txt)$|\.(vcf\.gz|vcf|txt|zip)$/i);
-  let fileExtension = match?.slice(1).find(Boolean)?.toLowerCase() || null;
-  //fileName?.match(/\.(txt|zip)$/i)?.[1]?.toLowerCase() || null;
+  // Prefer Content-Disposition filename over the URL's last segment, because some PGP
+  // endpoints (e.g. /user_file/download/N) serve the file directly without redirecting
+  // and the URL contains only a numeric id.
+  let dispositionName = getFilenameFromContentDisposition(response.headers.get("content-disposition"));
+  let fileName = dispositionName || (cleanUrl.split("/").pop() || null);
+  let fileExtension = parseExt(fileName);
+
+  // Fallback: some servers don't redirect or send Content-Disposition on HEAD.
+  // If we still don't know the file type and we're not at a directory listing, retry with GET
+  // and cancel the body so we never download the file itself.
+  if (!fileExtension && !finalUrl.endsWith("/_/")) {
+    try {
+      const getResp = await fetch(downloadUrl, {
+        method: "GET",
+        redirect: "follow"
+      });
+      if (getResp.body && typeof getResp.body.cancel === "function") {
+        getResp.body.cancel().catch(() => {});
+      }
+      if (getResp.ok) {
+        response = getResp;
+        finalUrl = getResp.url || finalUrl;
+        cleanUrl = finalUrl.split("?")[0];
+        dispositionName = getFilenameFromContentDisposition(getResp.headers.get("content-disposition")) || dispositionName;
+        fileName = dispositionName || (cleanUrl.split("/").pop() || fileName);
+        fileExtension = parseExt(fileName);
+      }
+    } catch (err) {
+      console.warn(`resolveDownloadFilenameCloud: GET fallback failed for ${downloadUrl}: ${err.message}`);
+    }
+  }
 
   // If final URL is a directory listing like /_/, we need the HTML body, so do a GET now.
   if (finalUrl.endsWith("/_/")) {

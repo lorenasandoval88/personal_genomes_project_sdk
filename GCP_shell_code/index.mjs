@@ -23,7 +23,7 @@ async function main() {
   console.log(`Participants found: ${participants.length}`);
 
   // Save participant metadata JSON first
-  const participantOutputPath = `pgp/participants/fetch23andMeParticipants_${LIMIT}.json`;
+  const participantOutputPath = `participant_list/fetch23andMeParticipants_${LIMIT}.json`;
 
   await bucket.file(participantOutputPath).save(
     JSON.stringify(participants, null, 2),
@@ -47,46 +47,43 @@ async function main() {
       }
 
 
-    const allowedExtensions = ["txt", "zip"];
+  const allowedExtensions = ["txt", "zip"];
+  const extension = String(participant.fileExtension || "").toLowerCase();
 
-    //toLowerCase() protects you if the extension comes back as "TXT" or "ZIP".
-   if (!allowedExtensions.includes(String(participant.fileExtension).toLowerCase())) {
-        skippedCount++;
-        console.warn(
-          `Skipping ${participant.id}: unsupported fileExtension=${participant.fileExtension}`
-        );
-        continue;
-      }
+  // Skip known non-TXT/ZIP files, but allow unknown/null URLs to be inspected.
+  if (extension && !allowedExtensions.includes(extension)) {
+    skippedCount++;
+    console.warn(
+      `Skipping ${participant.id}: unsupported fileExtension=${participant.fileExtension}`
+    );
+    continue;
+  }
 
+  console.log(`Processing ${participant.id}`);
+  console.log(`Download URL: ${participant.downloadUrl}`);
+  console.log(`File extension from metadata: ${participant.fileExtension}`);
 
-      console.log(`Processing ${participant.id}`);
-      console.log(`Download URL: ${participant.downloadUrl}`);
-      console.log(`File extension: ${participant.fileExtension}`);
+  const loaded = await load23andMeFileCloud_unknwn(
+    participant.downloadUrl,
+    participant.id
+  );
 
-      const loaded = await load23andMeFileCloud_unknwn(
-        participant.downloadUrl,
-        participant.id
-      );
+  // Only save text output. ZIP files should be extracted to TXT by the loader.
+  const dataToSave = loaded.txt;
 
-      console.log(loaded);
-
-    //   Because loaded.buffer is for binary files like .vcf.gz, and you do not want those.
-      const dataToSave = loaded.txt// loaded.buffer || loaded.txt;
-
-   
-    if (!dataToSave || !dataToSave.trim()) {
+  if (!dataToSave || !dataToSave.trim()) {
     throw new Error("Downloaded TXT is empty or unsupported");
-    }
+  }
 
-const safeFilename = (
-  loaded.filename || `${participant.id}.${loaded.fileExtension || "txt"}`
-).replace(/[\/\\?%*:|"<>]/g, "_");
+  const safeFilename = (
+    loaded.filename || `${participant.id}.${loaded.fileExtension || "txt"}`
+  ).replace(/[\/\\?%*:|"<>]/g, "_");
 
-      const outputPath = `pgp/genetic_files/${loaded.id}_${safeFilename}`;
+  const outputPath = `genetic_files/${loaded.id}_${safeFilename}`;
 
-      await bucket.file(outputPath).save(dataToSave, {
-        contentType: loaded.contentType || "text/plain"
-      });
+  await bucket.file(outputPath).save(dataToSave, {
+    contentType: "text/plain"
+  });
 
       savedCount++;
 
