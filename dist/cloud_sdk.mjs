@@ -15478,24 +15478,35 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
 // Downloads a ZIP from zipUrl, opens it with JSZip, and returns the inner .txt entry's filename
 // (last path segment). Used by parseParticipantsCloud when peekInsideZip is true.
 async function getInnerTxtNameFromZipUrl(zipUrl) {
-  if (!zipUrl) return null;
+  if (!zipUrl) throw new Error("getInnerTxtNameFromZipUrl: missing zipUrl");
 
   const response = await fetch(zipUrl, { redirect: "follow" });
-  if (!response.ok) return null;
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status} for ${zipUrl}`);
+  }
 
   const buffer = await response.arrayBuffer();
-  if (!buffer || buffer.byteLength === 0) return null;
+  if (!buffer || buffer.byteLength === 0) {
+    throw new Error(`empty body from ${zipUrl}`);
+  }
 
   const bytes = new Uint8Array(buffer);
   const isZipBuffer = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b;
-  if (!isZipBuffer) return null;
+  if (!isZipBuffer) {
+    const ct = response.headers.get("content-type") || "unknown";
+    throw new Error(`not a ZIP (content-type=${ct}, bytes=${buffer.byteLength}) from ${zipUrl}`);
+  }
 
   const zip = await JSZip.loadAsync(buffer);
   const entry = Object.keys(zip.files)
     .map(name => zip.files[name])
     .find(file => !file.dir && file.name.toLowerCase().endsWith(".txt"));
 
-  return entry ? entry.name.split("/").pop() : null;
+  if (!entry) {
+    throw new Error(`no .txt entry inside ZIP at ${zipUrl}`);
+  }
+
+  return entry.name.split("/").pop();
 }
 
 
