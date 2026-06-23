@@ -14810,16 +14810,22 @@ var JSZip = /*@__PURE__*/getDefaultExportFromCjs(libExports);
 const PGP_BASE_URL = "https://my.pgp-hms.org";
 const PGP_23ANDME_URL = `${PGP_BASE_URL}/public_genetic_data?utf8=%E2%9C%93&data_type=23andMe&commit=Search`;
 
+// Returns true if the string contains a supported 23andMe genome version label (v3, v4, or v5)
+// surrounded by non-alphanumeric boundaries. Used to filter genotype files by chip version.
 function hasSupportedGenomeVersionLabel(value = "") {
   return /(^|[^a-z0-9])v(?:3|4|5)(?=[^a-z0-9]|$)/i.test(String(value));
 }
 
+// Throws a descriptive error if `value` does not contain a v3/v4/v5 label.
+// `sourceType` is used only in the error message ("file", "href", "filename", etc.).
 function assertSupportedGenomeVersionLabel(value, sourceType = "file") {
   if (!hasSupportedGenomeVersionLabel(value)) {
     throw new Error(`Unsupported ${sourceType}: must include v3, v4, or v5 in name or href (${value})`);
   }
 }
 
+// Decodes the small set of HTML entities that appear in PGP HTML snippets
+// (&amp; &lt; &gt; &quot; &#39; &#x2F;) without pulling in a full HTML parser.
 function decodeHtmlEntities(text = "") {
   return String(text)
     .replace(/&amp;/g, "&")
@@ -14830,10 +14836,14 @@ function decodeHtmlEntities(text = "") {
     .replace(/&#x2F;/g, "/");
 }
 
+// Removes all HTML tags from `html`, collapses whitespace, and decodes entities.
+// Used to pull plain text out of PGP table cells and dropdown labels.
 function stripTags(html = "") {
   return decodeHtmlEntities(String(html).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim());
 }
 
+// Maps a verbose PGP data-type label (e.g. "genetic data - 23andMe") to its short
+// canonical value ("23andMe"). Falls back to stripping the known category prefix.
 function normalizeDataTypeValue(label) {
   const explicitMap = {
     "genetic data - 23andMe": "23andMe",
@@ -14865,6 +14875,8 @@ function normalizeDataTypeValue(label) {
     .trim();
 }
 
+// Returns a new array containing only the first item for each unique `value` key,
+// preserving insertion order. Used to dedupe parsed PGP data-type options.
 function dedupeByValue(items) {
   const seen = new Map();
   for (const item of items) {
@@ -14875,6 +14887,9 @@ function dedupeByValue(items) {
   return [...seen.values()];
 }
 
+// Splits a concatenated PGP data-type text block (e.g. "genetic data - 23andMe genetic data - Illumina ...")
+// into individual labels by locating known category prefixes. Used as a last-resort parser
+// when the page provides neither <select> nor <a> data-type options.
 function splitDatatypeBlock(block) {
   const knownPrefixes = [
     "biometric data - ",
@@ -14921,6 +14936,8 @@ function splitDatatypeBlock(block) {
   return [...new Set(labels)];
 }
 
+// Fetches `target` directly (no proxy), following redirects, optionally sending an
+// `Accept: application/json` header. Throws on non-2xx. Returns { response, finalUrl, source }.
 async function fetchDirect(target, options = {}) {
   const {
     acceptJson = false, fetchImpl = fetch
@@ -14944,6 +14961,9 @@ async function fetchDirect(target, options = {}) {
   };
 }
 
+// Lightweight HTML row parser for the PGP public_genetic_data page. Extracts 23andMe
+// participant rows without making per-row HEAD requests, so it is much faster than
+// parseParticipantsCloud but does not resolve final URLs or fileExtensions.
 function parseParticipantsFast(html, source = "unknown") {
   const rows = String(html).match(/<tr[^>]*data-file-row[^>]*>[\s\S]*?<\/tr>/gi) ||
     String(html).match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
@@ -14984,6 +15004,9 @@ function parseParticipantsFast(html, source = "unknown") {
   return participants;
 }
 
+// Returns the list of available data types from the PGP search page as
+// [{ value, label }, ...]. Tries three sources in order: <select name="data_type">,
+// anchor links with ?data_type=, and finally a plaintext scan of the page body.
 async function fetchAvailableDataTypes({
   base_url = `${PGP_BASE_URL}/public_genetic_data`,
   url = base_url,
@@ -15047,6 +15070,8 @@ async function fetchAvailableDataTypes({
   return [];
 }
 
+// Fast variant of the all-users listing: fetches the PGP search page for a given
+// data type and returns parsed participant rows via parseParticipantsFast (no per-row HEAD).
 async function allUsersMetaDataByType_fast(dataType = "23andMe") {
   const pgpUrl = `${PGP_BASE_URL}/public_genetic_data?utf8=%E2%9C%93&data_type=${encodeURIComponent(dataType)}&commit=Search`;
 
@@ -15059,6 +15084,8 @@ async function allUsersMetaDataByType_fast(dataType = "23andMe") {
   return parseParticipantsFast(html, source);
 }
 
+// Fetches a single PGP participant profile as JSON (e.g. /profile/huXXXXXX.json).
+// Falls back to a known sample id ("hu09B28E") when none is provided.
 async function fetchProfile(id) {
   const resolvedId = typeof id === "string" && id.trim() ? id.trim() : "hu09B28E";
   const profileUrl = `https://my.pgp-hms.org/profile/${resolvedId}.json`;
@@ -15072,6 +15099,9 @@ async function fetchProfile(id) {
   return response.json();
 }
 
+// Parses raw 23andMe TXT content into { txt, url, filename, meta, cols, dt }.
+// `meta` is the joined header comment lines, `cols` is the column header row, and
+// `dt` is an array of [rsid, chrom, pos:int, alleles, rowIndex] tuples.
 async function parse23Txt(txt, url) {
   const obj = {};
   const rows = String(txt ?? "").split(/[\r\n]+/g).filter(Boolean);
@@ -15103,6 +15133,9 @@ async function parse23Txt(txt, url) {
 // Directory listing (/_/) — fetches the HTML listing, finds a versioned .zip or .txt link, then falls into case 2 or 3
 // All paths return the result of parse23Txt, which produces { txt, url, filename, meta, cols, dt }.
 
+// Strict genotype-only loader: returns parse23Txt output and rejects any file that
+// doesn't carry a v3/v4/v5 label. For the permissive cloud loader that also handles
+// VCF/PDF/PNG/etc., see load23andMeFileCloud_unknwn.
 async function load23andMeFile(path, id = null) {
   if (typeof path !== "string") {
     throw new TypeError("load23andMeFile expects a URL/path string in the Node-safe SDK");
