@@ -1,7 +1,7 @@
 {
   "type": "module",
   "name": "personal_genomes_project_sdk",
-  "version": "1.2.7",
+  "version": "1.2.8",
   "description": "Fetch and cache 23andMe genetic data from the Personal Genome Project (PGP)",
   "license": "MIT",
   "author": "Lorena Sandoval",
