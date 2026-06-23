@@ -15255,17 +15255,18 @@ async function load23andMeFile(path, id = null) {
 
 async function fetch23andMeParticipants(limit = 10, options = {}) {
 
-   const { batchSize = 10 } = options;
+   const { batchSize = 10, peekInsideZip = false } = options;
 
 // batchSize is only used for a progress console.log. So passing batchSize: 10 does not parallelize HEAD requests — it just controls log frequency.
 // If you want real batching, parse all rows first, then run HEAD requests with Promise.all over chunks of batchSize.
+// peekInsideZip: when true, ZIP entries also fetch and unzip the file to record the inner txt filename as innerFileName. Slow (downloads each zip), so default off.
   const response = await fetch(PGP_23ANDME_URL);
 
   if (!response.ok) {
     throw new Error(`Failed to fetch PGP 23andMe page: HTTP ${response.status}`);
   }
   const html = await response.text();
-  const participants = await parseParticipantsCloud(html, limit, { batchSize });
+  const participants = await parseParticipantsCloud(html, limit, { batchSize, peekInsideZip });
   return participants;
 }
 
@@ -15274,7 +15275,7 @@ async function fetch23andMeParticipants(limit = 10, options = {}) {
 //Parse HTML to extract participant data - used in fetch23andMeParticipants()
 async function parseParticipantsCloud(html, limit = 10, options = {}) {
 
-  const { batchSize = 10 } = options;
+  const { batchSize = 10, peekInsideZip = false } = options;
   const participants = [];
 
   // Match table rows
@@ -15319,6 +15320,17 @@ async function parseParticipantsCloud(html, limit = 10, options = {}) {
         console.warn(`parseParticipantsCloud: resolve failed for ${id}: ${err.message}`);
       }
 
+    // Opt-in: for ZIPs, download and unzip to find the inner .txt filename.
+    let innerFileName = null;
+    if (peekInsideZip && resolved.fileExtension === "zip") {
+      const zipUrl = resolved.finalUrl || downloadUrl;
+      try {
+        innerFileName = await getInnerTxtNameFromZipUrl(zipUrl);
+      } catch (err) {
+        console.warn(`parseParticipantsCloud: zip peek failed for ${id}: ${err.message}`);
+      }
+    }
+
     participants.push({
       id,
       profileUrl,
@@ -15328,7 +15340,8 @@ async function parseParticipantsCloud(html, limit = 10, options = {}) {
       downloadUrl,
       finalUrl: resolved.finalUrl,
       fileName: resolved.fileName,
-      fileExtension: resolved.fileExtension
+      fileExtension: resolved.fileExtension,
+      innerFileName
     });
 
     if (participants.length % batchSize === 0) {
@@ -15462,6 +15475,30 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
 }
 
 
+// Downloads a ZIP from zipUrl, opens it with JSZip, and returns the inner .txt entry's filename
+// (last path segment). Used by parseParticipantsCloud when peekInsideZip is true.
+async function getInnerTxtNameFromZipUrl(zipUrl) {
+  if (!zipUrl) return null;
+
+  const response = await fetch(zipUrl, { redirect: "follow" });
+  if (!response.ok) return null;
+
+  const buffer = await response.arrayBuffer();
+  if (!buffer || buffer.byteLength === 0) return null;
+
+  const bytes = new Uint8Array(buffer);
+  const isZipBuffer = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+  if (!isZipBuffer) return null;
+
+  const zip = await JSZip.loadAsync(buffer);
+  const entry = Object.keys(zip.files)
+    .map(name => zip.files[name])
+    .find(file => !file.dir && file.name.toLowerCase().endsWith(".txt"));
+
+  return entry ? entry.name.split("/").pop() : null;
+}
+
+
 // This is the main txt downloader
 //downloads the actual 23andMe text from direct .txt, .zip, or /_/ directory
 // a v3/v4/v5 genome-version label in the filename or zip entry.
@@ -15506,7 +15543,8 @@ async function load23andMeFileCloud_unknwn(path, id = null) {
       txt,
       url: finalUrl,
       filename: getFilenameFromUrl(finalUrl),
-      fileExtension: "txt"
+      fileExtension: "txt",
+      innerFileName: null
     };
   }
 
@@ -15569,6 +15607,7 @@ if (lowerResolvedUrl.endsWith(".vcf.gz")) {
     url: resolvedFileUrl,
     filename: getFilenameFromUrl(resolvedFileUrl),
     fileExtension: "vcf.gz",
+    innerFileName: null
   };
 }
 
@@ -15586,6 +15625,7 @@ if (lowerResolvedUrl.endsWith(".vcf")) {
     url: resolvedFileUrl,
     filename: getFilenameFromUrl(resolvedFileUrl),
     fileExtension: "vcf",
+    innerFileName: null
   };
 }
 
@@ -15606,6 +15646,7 @@ if (lowerResolvedUrl.endsWith("_vcf.txt") || lowerResolvedUrl.endsWith(".vcf.txt
     url: resolvedFileUrl,
     filename: vcfName,
     fileExtension: "vcf.txt",
+    innerFileName: null
   };
 }
 
@@ -15621,7 +15662,8 @@ if (lowerResolvedUrl.endsWith("_vcf.txt") || lowerResolvedUrl.endsWith(".vcf.txt
         txt,
         url: resolvedFileUrl,
         filename: getFilenameFromUrl(resolvedFileUrl),
-        fileExtension: "txt"
+        fileExtension: "txt",
+        innerFileName: null
       };
     }
 
@@ -15715,7 +15757,8 @@ async function extractFromUnknownResponse(response, finalUrl, source, id = null,
     txt,
     url: finalUrl,
     filename,
-    fileExtension: "txt"
+    fileExtension: "txt",
+    innerFileName: null
   };
 }
 
@@ -15772,9 +15815,10 @@ async function extractTxtFromZipResponse(response, zipUrl, source, id = null, op
     url: zipUrl,
     filename: targetFile.name.split("/").pop(),
     fileExtension: "txt",
-    sourceZip: getFilenameFromUrl(zipUrl)
+    sourceZip: getFilenameFromUrl(zipUrl),
+    innerFileName: targetFile.name.split("/").pop()
   };
 }
 
-export { JSZip, allUsersMetaDataByType_fast, fetch23andMeParticipants, fetchAvailableDataTypes, fetchProfile, load23andMeFile, load23andMeFileCloud_unknwn, parse23Txt, parseParticipantsCloud, resolveDownloadFilenameCloud };
+export { JSZip, allUsersMetaDataByType_fast, fetch23andMeParticipants, fetchAvailableDataTypes, fetchProfile, getInnerTxtNameFromZipUrl, load23andMeFile, load23andMeFileCloud_unknwn, parse23Txt, parseParticipantsCloud, resolveDownloadFilenameCloud };
 //# sourceMappingURL=cloud_sdk.mjs.map
