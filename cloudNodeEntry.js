@@ -8,6 +8,7 @@ import {
   fetch23andMeParticipants,
   parseParticipantsCloud,
   resolveDownloadFilenameCloud,
+  getInnerTxtNameFromZipUrl,
   load23andMeFileCloud_unknwn
 } from "./src/js/cloud/pgp_node.js";
 
@@ -21,5 +22,6 @@ export {
   fetch23andMeParticipants,
   parseParticipantsCloud,
   resolveDownloadFilenameCloud,
+  getInnerTxtNameFromZipUrl,
   load23andMeFileCloud_unknwn
 };
