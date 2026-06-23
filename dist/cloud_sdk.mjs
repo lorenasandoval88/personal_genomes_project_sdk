@@ -15364,7 +15364,11 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
     };
   }
 
-  const extPattern = /(?:_|\.)(vcf\.txt)$|\.(vcf\.gz|vcf|txt|zip)$/i;
+  // Capture any reasonable file extension, not just genotype types:
+  //   group 1: *_vcf.txt or *.vcf.txt     -> "vcf.txt"
+  //   group 2: any *.<word>.gz            -> e.g. "vcf.gz", "tar.gz"
+  //   group 3: any other final extension  -> e.g. "pdf", "bai", "txt", "zip"
+  const extPattern = /(?:_|\.)(vcf\.txt)$|\.([a-z0-9]+\.gz)$|\.([a-z0-9]{1,10})$/i;
   const parseExt = (name) => {
     const m = name?.match(extPattern);
     return m?.slice(1).find(Boolean)?.toLowerCase() || null;
@@ -15457,8 +15461,7 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
     const resolvedFileUrl = new URL(preferredHref, finalUrl).href;
     const resolvedFileName = resolvedFileUrl.split("?")[0].split("/").pop();
 
-    const resolvedMatch = resolvedFileName?.match(/(?:_|\.)(vcf\.txt)$|\.(vcf\.gz|vcf|txt|zip)$/i);
-    const resolvedExtension =  resolvedMatch?.slice(1).find(Boolean)?.toLowerCase() || null;
+    const resolvedExtension = parseExt(resolvedFileName);
   
     return {
       finalUrl: resolvedFileUrl,
@@ -15719,7 +15722,9 @@ function getFilenameFromContentDisposition(header) {
 }
 
 // Handles responses where the URL extension is unknown (e.g. /user_file/download/N).
-// Decides between ZIP and plain TXT using headers + ZIP magic bytes.
+// "Describe, don't decide": classify the bytes and return either { txt, ... } for plain
+// text or { buffer, ... } for binary formats. Callers (e.g. Cloud Run index.mjs) then
+// choose what to save based on fileExtension.
 async function extractFromUnknownResponse(response, finalUrl, source, id = null, options = {}) {
   const {
     requireVersionLabel = true
@@ -15728,22 +15733,30 @@ async function extractFromUnknownResponse(response, finalUrl, source, id = null,
   const dispositionName = getFilenameFromContentDisposition(response.headers.get("content-disposition"));
   const contentType = (response.headers.get("content-type") || "").toLowerCase();
 
-  const buffer = await response.arrayBuffer();
-  if (!buffer || buffer.byteLength === 0) {
+  const arrayBuf = await response.arrayBuffer();
+  if (!arrayBuf || arrayBuf.byteLength === 0) {
     throw new Error(`Response from ${source} is empty`);
   }
 
-  const bytes = new Uint8Array(buffer);
-  const isZipBuffer = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b;
+  const bytes = new Uint8Array(arrayBuf);
+  const filename = dispositionName || getFilenameFromUrl(finalUrl);
 
+  // Magic-byte sniffing
+  const sig4 = (a, b, c, d) => bytes[0] === a && bytes[1] === b && bytes[2] === c && bytes[3] === d;
+  const isZipBuffer = bytes.length >= 2 && bytes[0] === 0x50 && bytes[1] === 0x4b; // PK
+  const isPdf  = sig4(0x25, 0x50, 0x44, 0x46);  // %PDF
+  const isPng  = sig4(0x89, 0x50, 0x4e, 0x47);  // \x89PNG
+  const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+  const isGzip = bytes[0] === 0x1f && bytes[1] === 0x8b;
+
+  // ZIP -> still extract inner .txt (legacy genotype behavior).
   const looksZip =
     isZipBuffer ||
     contentType.includes("zip") ||
     (dispositionName && /\.zip$/i.test(dispositionName));
 
   if (looksZip) {
-    // Re-wrap the already-read buffer as a Response so extractTxtFromZipResponse can consume it.
-    const zipResponse = new Response(buffer);
+    const zipResponse = new Response(arrayBuf);
     const zipUrl = dispositionName ?
       new URL(dispositionName, finalUrl).href :
       finalUrl;
@@ -15752,23 +15765,77 @@ async function extractFromUnknownResponse(response, finalUrl, source, id = null,
     });
   }
 
-  // Treat as plain text.
-  const txt = new TextDecoder("utf-8").decode(buffer);
+  // Binary formats: return raw buffer + descriptor. Caller decides whether to save.
+  if (isPdf) {
+    return {
+      id,
+      buffer: Buffer.from(arrayBuf),
+      url: finalUrl,
+      filename,
+      fileExtension: "pdf",
+      contentType: contentType || "application/pdf",
+      innerFileName: null
+    };
+  }
+  if (isPng) {
+    return {
+      id,
+      buffer: Buffer.from(arrayBuf),
+      url: finalUrl,
+      filename,
+      fileExtension: "png",
+      contentType: contentType || "image/png",
+      innerFileName: null
+    };
+  }
+  if (isJpeg) {
+    return {
+      id,
+      buffer: Buffer.from(arrayBuf),
+      url: finalUrl,
+      filename,
+      fileExtension: "jpg",
+      contentType: contentType || "image/jpeg",
+      innerFileName: null
+    };
+  }
+  if (isGzip) {
+    // Prefer the specific "vcf.gz" label when the filename tells us so.
+    const gzExt = /\.vcf\.gz$/i.test(filename) ? "vcf.gz" : "gz";
+    return {
+      id,
+      buffer: Buffer.from(arrayBuf),
+      url: finalUrl,
+      filename,
+      fileExtension: gzExt,
+      contentType: contentType || "application/gzip",
+      innerFileName: null
+    };
+  }
+
+  // Otherwise treat as plain text (UTF-8).
+  const txt = new TextDecoder("utf-8").decode(arrayBuf);
   if (!txt || !txt.trim()) {
     throw new Error(`TXT response from ${source} is empty`);
   }
 
-  const filename = dispositionName || getFilenameFromUrl(finalUrl);
   if (requireVersionLabel) {
     assertSupportedGenomeVersionLabel(filename, "filename");
   }
+
+  // Use any hint from the filename to label the extension precisely.
+  let textExt = "txt";
+  const extHint = filename.match(/(?:_|\.)(vcf\.txt)$|\.(vcf|txt|csv|tsv|json|xml|html?)$/i);
+  const hinted = extHint?.slice(1).find(Boolean)?.toLowerCase();
+  if (hinted) textExt = hinted;
 
   return {
     id,
     txt,
     url: finalUrl,
     filename,
-    fileExtension: "txt",
+    fileExtension: textExt,
+    contentType: contentType || "text/plain",
     innerFileName: null
   };
 }
