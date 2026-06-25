@@ -65,5 +65,18 @@ export default [
       sourcemap: true
     },
     plugins: nodePlugins
+  },
+  // Browser-safe SDK module (same exports as cloud_sdk.mjs but resolves
+  // jszip's browser bundle so it has no bare `stream`/`buffer`/`util` imports).
+  // Buffer is shimmed to Uint8Array so binary-returning paths don't crash in browsers.
+  {
+    input: 'cloudNodeEntry.js',
+    output: {
+      file: 'dist/cloud_sdk.browser.mjs',
+      format: 'es',
+      intro: 'var self = globalThis; var Buffer = globalThis.Buffer || { from: (b) => new Uint8Array(b instanceof ArrayBuffer ? b : (b && b.buffer) || b) };',
+      sourcemap: true
+    },
+    plugins: browserPlugins
   }
 ];
