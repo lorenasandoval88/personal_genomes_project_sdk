@@ -539,7 +539,13 @@ async function parseParticipantsCloud(html, limit = 10, options = {}) {
     const name = stripTags(cells[5]);
 
     // Resolve actual file URL and filename
-    let resolved = { finalUrl: null, fileName: null, fileExtension: null };
+    let resolved = {
+      httpStatusDownloadUrl: null,
+      httpStatusFinalUrl: null,
+      finalUrl: null,
+      fileName: null,
+      fileExtension: null
+    };
       try {
         resolved = await resolveDownloadFilenameCloud(downloadUrl);
       } catch (err) {
@@ -564,7 +570,9 @@ async function parseParticipantsCloud(html, limit = 10, options = {}) {
       dataType,
       name,
       downloadUrl,
+      httpStatusDownloadUrl: resolved.httpStatusDownloadUrl,
       finalUrl: resolved.finalUrl,
+      httpStatusFinalUrl: resolved.httpStatusFinalUrl,
       fileName: resolved.fileName,
       fileExtension: resolved.fileExtension,
       innerFileName
@@ -580,14 +588,20 @@ async function parseParticipantsCloud(html, limit = 10, options = {}) {
 
 
 //follows redirects to get the real URL/filename - used in parseParticipantsCloud() 
-//participant row → metadata + downloadUrl + finalUrl + fileName
+//participant row → metadata + downloadUrl + httpStatusDownloadUrl + finalUrl + httpStatusFinalUrl + fileName
+// httpStatusDownloadUrl: raw status of `downloadUrl` BEFORE following redirects (e.g. 302).
+//   If downloadUrl responds 2xx directly, this is the string "no redirect" instead of a code.
+// httpStatusFinalUrl: status of the URL we'd actually download from (e.g. 200 after a 302,
+//   or the status of the file picked from a /_/ directory listing).
 async function resolveDownloadFilenameCloud(downloadUrl) {
   if (!downloadUrl) {
-    return {
-      finalUrl: null,
-      fileName: null,
-      fileExtension: null
-    };
+  return {
+    httpStatusDownloadUrl: null,
+    httpStatusFinalUrl: null,
+    finalUrl: null,
+    fileName: null,
+    fileExtension: null
+  };
   }
 
   // Capture any reasonable file extension, not just genotype types:
@@ -600,35 +614,68 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
     return m?.slice(1).find(Boolean)?.toLowerCase() || null;
   };
 
-  // HEAD avoids downloading the (potentially large) file body just to read redirects.
-  let response = await fetch(downloadUrl, {
-    method: "HEAD",
-    redirect: "follow"
-  });
+  let httpStatusDownloadUrl = null;
+  let httpStatusFinalUrl = null;
+  let finalUrl = downloadUrl;
+  let dispositionName = null;
 
-  if (!response.ok) {
-    console.warn(`resolveDownloadFilenameCloud: HTTP ${response.status} for ${downloadUrl}`);
+  // Step 1: HEAD with manual redirect so we can record the raw status of downloadUrl
+  // (typically 302 for PGP). If it's 2xx, the URL is already final — mark "no redirect".
+  try {
+    const initial = await fetch(downloadUrl, { method: "HEAD", redirect: "manual" });
+
+    if (initial.status >= 300 && initial.status < 400) {
+      console.log(`resolveDownloadFilenameCloud: ${downloadUrl} redirected with HTTP ${initial.status}`);
+      console.log("resolveDownloadFilenameCloud: initial response:", initial);
+      httpStatusDownloadUrl = initial.status;
+      const location = initial.headers.get("location");
+      if (location) {
+        finalUrl = new URL(location, downloadUrl).href;
+      }
+    } else {
+      httpStatusDownloadUrl = "no redirect";
+      httpStatusFinalUrl = initial.status;
+      dispositionName = getFilenameFromContentDisposition(initial.headers.get("content-disposition"));
+    }
+  } catch (err) {
+    console.warn(`resolveDownloadFilenameCloud: manual HEAD failed for ${downloadUrl}: ${err.message}`);
+  }
+
+  // Step 2: HEAD the (possibly-redirected) final URL to capture httpStatusFinalUrl.
+  if (httpStatusFinalUrl == null) {
+    try {
+      const followed = await fetch(finalUrl, { method: "HEAD", redirect: "follow" });
+      httpStatusFinalUrl = followed.status;
+      finalUrl = followed.url || finalUrl;
+      dispositionName = dispositionName || getFilenameFromContentDisposition(followed.headers.get("content-disposition"));
+    } catch (err) {
+      console.warn(`resolveDownloadFilenameCloud: HEAD follow failed for ${finalUrl}: ${err.message}`);
+    }
+  }
+
+  if (httpStatusFinalUrl != null && httpStatusFinalUrl >= 400) {
+    console.warn(`resolveDownloadFilenameCloud: HTTP ${httpStatusFinalUrl} for ${finalUrl}`);
     return {
-      finalUrl: null,
+      httpStatusDownloadUrl,
+      httpStatusFinalUrl,
+      finalUrl,
       fileName: null,
       fileExtension: null
     };
   }
 
-  let finalUrl = response.url || downloadUrl;
-  let cleanUrl = finalUrl.split("?")[0];
+  let cleanUrl = (finalUrl || "").split("?")[0];
 
   // Prefer Content-Disposition filename over the URL's last segment, because some PGP
   // endpoints (e.g. /user_file/download/N) serve the file directly without redirecting
   // and the URL contains only a numeric id.
-  let dispositionName = getFilenameFromContentDisposition(response.headers.get("content-disposition"));
   let fileName = dispositionName || (cleanUrl.split("/").pop() || null);
   let fileExtension = parseExt(fileName);
 
-  // Fallback: some servers don't redirect or send Content-Disposition on HEAD.
-  // If we still don't know the file type and we're not at a directory listing, retry with GET
-  // and cancel the body so we never download the file itself.
-  if (!fileExtension && !finalUrl.endsWith("/_/")) {
+  // Fallback: some servers don't send Content-Disposition on HEAD. If we still don't
+  // know the file type and we're not at a directory listing, retry with GET and cancel
+  // the body so we never download the file itself.
+  if (!fileExtension && finalUrl && !finalUrl.endsWith("/_/")) {
     try {
       const getResp = await fetch(downloadUrl, {
         method: "GET",
@@ -638,7 +685,7 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
         getResp.body.cancel().catch(() => {});
       }
       if (getResp.ok) {
-        response = getResp;
+        httpStatusFinalUrl = getResp.status;
         finalUrl = getResp.url || finalUrl;
         cleanUrl = finalUrl.split("?")[0];
         dispositionName = getFilenameFromContentDisposition(getResp.headers.get("content-disposition")) || dispositionName;
@@ -650,20 +697,23 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
     }
   }
 
+
   // If final URL is a directory listing like /_/, we need the HTML body, so do a GET now.
-  if (finalUrl.endsWith("/_/")) {
-    response = await fetch(finalUrl, {
+  if (finalUrl && finalUrl.endsWith("/_/")) {
+    const dirResp = await fetch(finalUrl, {
       redirect: "follow"
     });
-    if (!response.ok) {
-      console.warn(`resolveDownloadFilenameCloud: directory GET HTTP ${response.status} for ${finalUrl}`);
+    if (!dirResp.ok) {
+      console.warn(`resolveDownloadFilenameCloud: directory GET HTTP ${dirResp.status} for ${finalUrl}`);
       return {
+        httpStatusDownloadUrl,
+        httpStatusFinalUrl: dirResp.status,
         finalUrl,
         fileName: null,
         fileExtension: null
       };
     }
-    const html = await response.text();
+    const html = await dirResp.text();
 
     const hrefs = [...html.matchAll(/href="([^"]+)"/gi)].map(m => m[1]);
 
@@ -678,6 +728,8 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
 
     if (!preferredHref) {
       return {
+        httpStatusDownloadUrl,
+        httpStatusFinalUrl: dirResp.status,
         finalUrl,
         fileName: null,
         fileExtension: null
@@ -686,10 +738,20 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
 
     const resolvedFileUrl = new URL(preferredHref, finalUrl).href;
     const resolvedFileName = resolvedFileUrl.split("?")[0].split("/").pop();
-
     const resolvedExtension = parseExt(resolvedFileName);
-  
+
+    // HEAD the resolved inner file so httpStatusFinalUrl reflects the actual file.
+    let resolvedStatus = null;
+    try {
+      const fileResp = await fetch(resolvedFileUrl, { method: "HEAD", redirect: "follow" });
+      resolvedStatus = fileResp.status;
+    } catch (err) {
+      console.warn(`resolveDownloadFilenameCloud: HEAD failed for ${resolvedFileUrl}: ${err.message}`);
+    }
+
     return {
+      httpStatusDownloadUrl,
+      httpStatusFinalUrl: resolvedStatus ?? dirResp.status,
       finalUrl: resolvedFileUrl,
       fileName: resolvedFileName,
       fileExtension: resolvedExtension
@@ -697,13 +759,15 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
   }
 
   return {
+    httpStatusDownloadUrl,
+    httpStatusFinalUrl,
     finalUrl,
     fileName,
     fileExtension
   };
 }
 
-
+// used in parseParticipantsCloud()
 // Downloads a ZIP from zipUrl, opens it with JSZip, and returns the inner .txt entry's filename
 // (last path segment). Used by parseParticipantsCloud when peekInsideZip is true.
 async function getInnerTxtNameFromZipUrl(zipUrl) {
