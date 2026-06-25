@@ -55,24 +55,14 @@ export default [
     },
     plugins: browserPlugins
   },
-  // Node-safe SDK module
+  // Universal SDK module — browser-resolved so it has no bare `stream`/`buffer`/`util`
+  // imports (which break in browsers). Still works in Node (Cloud Run) because:
+  //   - The Buffer shim short-circuits to native Buffer when it exists.
+  //   - JSZip's browser build supports the arrayBuffer + .async("string") APIs we use.
   {
     input: 'cloudNodeEntry.js',
     output: {
       file: 'dist/cloud_sdk.mjs',
-      format: 'es',
-      intro: 'var self = globalThis;',
-      sourcemap: true
-    },
-    plugins: nodePlugins
-  },
-  // Browser-safe SDK module (same exports as cloud_sdk.mjs but resolves
-  // jszip's browser bundle so it has no bare `stream`/`buffer`/`util` imports).
-  // Buffer is shimmed to Uint8Array so binary-returning paths don't crash in browsers.
-  {
-    input: 'cloudNodeEntry.js',
-    output: {
-      file: 'dist/cloud_sdk.browser.mjs',
       format: 'es',
       intro: 'var self = globalThis; var Buffer = globalThis.Buffer || { from: (b) => new Uint8Array(b instanceof ArrayBuffer ? b : (b && b.buffer) || b) };',
       sourcemap: true
