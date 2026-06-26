@@ -11,6 +11,7 @@ ls
 You should see:
 
 Dockerfile  index.js  package.json
+
 2. Make sure Dockerfile uses index.js
 cat > Dockerfile <<'EOF'
 FROM node:20-bookworm
@@ -24,70 +25,49 @@ COPY . .
 
 CMD ["node", "index.js"]
 EOF
-3. Add .dockerignore
-cat > .dockerignore <<'EOF'
-node_modules
-npm-debug.log
-.git
-EOF
-4. Install locally and test small first
+
+
+3. Install locally and test small first
+
 rm -rf node_modules package-lock.json
 npm install
-BUCKET_NAME=all23_files LIMIT=6 BATCH_SIZE=10 node index.js
+run:
 
-Check:
+cd ~/all23_files
 
-gcloud storage ls gs://all23_files/participant_list/
-gcloud storage ls gs://all23_files/genetic_files/
-5. Build Docker image
-gcloud builds submit --tag gcr.io/personalgenomes/all23-files-job .
-6. Create Cloud Run Job for all files
+BUCKET_NAME=all23_06252026 \
+LIMIT=1017 \
+BATCH_SIZE=10 \
+HEADER_READ_BYTES=131072 \
+node indexFull.js
 
-Use LIMIT=1100 for all PGP 23andMe records:
+4. run as Cloud Run and close Shell:
 
-gcloud run jobs create all23-files-job \
-  --image gcr.io/personalgenomes/all23-files-job \
+gcloud builds submit --tag gcr.io/personalgenomes/all23-06252026-job .
+
+gcloud run jobs create all23-06252026-job \
+  --image gcr.io/personalgenomes/all23-06252026-job \
   --region us-east4 \
   --memory 4Gi \
   --cpu 2 \
   --task-timeout 3600 \
-  --set-env-vars BUCKET_NAME=all23_files,LIMIT=1100,BATCH_SIZE=10
+  --command node \
+  --args indexFull.js \
+  --set-env-vars BUCKET_NAME=all23_06252026,LIMIT=1017,BATCH_SIZE=10,HEADER_READ_BYTES=131072
 
-If the job already exists, run this instead:
+Run without waiting:
 
-gcloud run jobs update all23-files-job \
-  --image gcr.io/personalgenomes/all23-files-job \
-  --region us-east4 \
-  --memory 4Gi \
-  --cpu 2 \
-  --task-timeout 3600 \
-  --set-env-vars BUCKET_NAME=all23_files,LIMIT=1100,BATCH_SIZE=10
-7. Execute the job
-gcloud run jobs execute all23-files-job \
-  --region us-east4 \
-  --wait
-8. Check saved files
+gcloud run jobs execute all23-06252026-job \
+  --region us-east4
 
-Participant metadata:
+Check later:
 
-gcloud storage ls gs://all23_files/participant_list/
+gcloud run jobs executions list \
+  --job=all23-06252026-job \
+  --region us-east4
 
-Downloaded TXT / ZIP-extracted files:
+Output should be:
 
-gcloud storage ls gs://all23_files/genetic_files/ | wc -l
-
-List the first few:
-
-gcloud storage ls gs://all23_files/genetic_files/ | head
-
-Your script will download only:
-
-txt
-zip
-
-and skip:
-
-vcf
-vcf.gz
-vcf.txt
-null
+gs://all23_06252026/participantList/participants_1017.json
+gs://all23_06252026/updatedParticipantsList/participants_1017_with_build.json
+gs://all23_06252026/runReports/
