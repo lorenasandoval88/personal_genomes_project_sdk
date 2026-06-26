@@ -7,4 +7,4 @@ RUN npm install
 
 COPY . .
 
-CMD ["node", "index_v3_v4_v5.mjs"]
+CMD ["node", "index.js"]
