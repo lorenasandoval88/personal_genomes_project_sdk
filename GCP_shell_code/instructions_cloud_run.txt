@@ -39,7 +39,7 @@ BUCKET_NAME=all23_06252026 \
 LIMIT=1017 \
 BATCH_SIZE=10 \
 HEADER_READ_BYTES=131072 \
-node indexFull.js
+node index.js
 
 4. run as Cloud Run and close Shell:
 
@@ -52,7 +52,7 @@ gcloud run jobs create all23-06252026-job \
   --cpu 2 \
   --task-timeout 3600 \
   --command node \
-  --args indexFull.js \
+  --args index.js \
   --set-env-vars BUCKET_NAME=all23_06252026,LIMIT=1017,BATCH_SIZE=10,HEADER_READ_BYTES=131072
 
 Run without waiting:
