@@ -677,7 +677,7 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
 
     if (initial.status >= 300 && initial.status < 400) {
       console.log(`resolveDownloadFilenameCloud: ${downloadUrl} redirected with HTTP ${initial.status}`);
-      console.log("resolveDownloadFilenameCloud: initial response:", initial);
+      //console.log("resolveDownloadFilenameCloud: initial response:", initial);
       httpStatusDownloadUrl = initial.status;
       const location = initial.headers.get("location");
       if (location) {
