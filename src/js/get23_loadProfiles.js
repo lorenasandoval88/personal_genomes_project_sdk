@@ -48,11 +48,11 @@ function renderProfilesTable(participants) {
         const published = escapeHtml(p.publishedDate || '');
         const profileUrl = p.profileUrl || `https://my.pgp-hms.org/profile/${p.id}`;
         const fileUrl = p.finalUrl || p.downloadUrl || null;
-        const displayName = p.innerFileName || p.fileName || (fileUrl ? 'Download' : 'N/A');
-        const fileName = escapeHtml(displayName);
-        const ext = escapeHtml(p.fileExtension || '');
+        const displayName = p.innerFilename || p.filename || (fileUrl ? 'Download' : 'N/A');
+        const filename = escapeHtml(displayName);
+        const ext = escapeHtml(p.filenameExtension || '');
         const fileCell = fileUrl
-            ? `<a href="${escapeHtml(fileUrl)}" target="_blank" rel="noopener noreferrer">${fileName}</a>`
+            ? `<a href="${escapeHtml(fileUrl)}" target="_blank" rel="noopener noreferrer">${filename}</a>`
             : 'N/A';
 
         html += `
@@ -61,7 +61,7 @@ function renderProfilesTable(participants) {
                 <td><code>${id}</code></td>
                 <td style="${truncateStyle}" title="${name}">${name}</td>
                 <td>${published}</td>
-                <td style="${truncateStyle}" title="${fileName}">${fileCell}</td>
+                <td style="${truncateStyle}" title="${filename}">${fileCell}</td>
                 <td>${ext}</td>
                 <td><a href="${escapeHtml(profileUrl)}" target="_blank" rel="noopener noreferrer">View</a></td>
             </tr>

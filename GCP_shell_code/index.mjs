@@ -48,20 +48,20 @@ async function main() {
 
 
   const allowedExtensions = ["txt", "zip"];
-  const extension = String(participant.fileExtension || "").toLowerCase();
+  const extension = String(participant.filenameExtension || "").toLowerCase();
 
   // Skip known non-TXT/ZIP files, but allow unknown/null URLs to be inspected.
   if (extension && !allowedExtensions.includes(extension)) {
     skippedCount++;
     console.warn(
-      `Skipping ${participant.id}: unsupported fileExtension=${participant.fileExtension}`
+      `Skipping ${participant.id}: unsupported filenameExtension=${participant.filenameExtension}`
     );
     continue;
   }
 
   console.log(`Processing ${participant.id}`);
   console.log(`Download URL: ${participant.downloadUrl}`);
-  console.log(`File extension from metadata: ${participant.fileExtension}`);
+  console.log(`File extension from metadata: ${participant.filenameExtension}`);
 
   const loaded = await load23andMeFileCloud_unknwn(
     participant.downloadUrl,
@@ -76,7 +76,7 @@ async function main() {
   }
 
   const safeFilename = (
-    loaded.filename || `${participant.id}.${loaded.fileExtension || "txt"}`
+    loaded.filename || `${participant.id}.${loaded.filenameExtension || "txt"}`
   ).replace(/[\/\\?%*:|"<>]/g, "_");
 
   const outputPath = `genetic_files/${loaded.id}_${safeFilename}`;

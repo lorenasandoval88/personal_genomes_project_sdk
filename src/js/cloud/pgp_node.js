@@ -156,7 +156,7 @@ async function fetchDirect(target, options = {}) {
 
 // Lightweight HTML row parser for the PGP public_genetic_data page. Extracts 23andMe
 // participant rows without making per-row HEAD requests, so it is much faster than
-// parseParticipantsCloud but does not resolve final URLs or fileExtensions.
+// parseParticipantsCloud but does not resolve final URLs or filenameExtensions.
 function parseParticipantsFast(html, source = "unknown") {
   const rows = String(html).match(/<tr[^>]*data-file-row[^>]*>[\s\S]*?<\/tr>/gi) ||
     String(html).match(/<tr[^>]*>[\s\S]*?<\/tr>/gi) || [];
@@ -187,8 +187,8 @@ function parseParticipantsFast(html, source = "unknown") {
       dataType,
       dataSource: source,
       name: stripTags(cells[5]) || null,
-      fileName: stripTags(cells[5]) || null,
-      fileExtension: null,
+      filename: stripTags(cells[5]) || null,
+      filenameExtension: null,
       finalUrl: null,
       downloadUrl
     });
@@ -485,7 +485,7 @@ async function fetch23andMeParticipants(limit = 10, options = {}) {
 
 // batchSize is only used for a progress console.log. So passing batchSize: 10 does not parallelize HEAD requests — it just controls log frequency.
 // If you want real batching, parse all rows first, then run HEAD requests with Promise.all over chunks of batchSize.
-// peekInsideZip: when true, ZIP entries also fetch and unzip the file to record the inner txt filename as innerFileName. Slow (downloads each zip), so default off.
+// peekInsideZip: when true, ZIP entries also fetch and unzip the file to record the inner txt filename as innerFilename. Slow (downloads each zip), so default off.
   const response = await fetch(PGP_23ANDME_URL);
 
   if (!response.ok) {
@@ -543,8 +543,8 @@ async function parseParticipantsCloud(html, limit = 10, options = {}) {
       httpStatusDownloadUrl: null,
       httpStatusFinalUrl: null,
       finalUrl: null,
-      fileName: null,
-      fileExtension: null
+      filename: null,
+      filenameExtension: null
     };
       try {
         resolved = await resolveDownloadFilenameCloud(downloadUrl);
@@ -553,16 +553,29 @@ async function parseParticipantsCloud(html, limit = 10, options = {}) {
       }
 
     // Opt-in: for ZIPs, download and unzip to find the inner .txt filename.
-    let innerFileName = null;
-    if (peekInsideZip && resolved.fileExtension === "zip") {
+    let innerFilename = null;
+    if (peekInsideZip && resolved.filenameExtension === "zip") {
       const zipUrl = resolved.finalUrl || downloadUrl;
       try {
-        innerFileName = await getInnerTxtNameFromZipUrl(zipUrl);
+        innerFilename = await getInnerTxtNameFromZipUrl(zipUrl);
       } catch (err) {
         console.warn(`parseParticipantsCloud: zip peek failed for ${id}: ${err.message}`);
       }
     }
-
+    // example:  {
+    //   "id": "huC8B936",
+    //   "profileUrl": "https://my.pgp-hms.org/profile/huC8B936",
+    //   "publishedDate": "2026-04-14",
+    //   "dataType": "23andMe",
+    //   "name": "James",
+    //   "downloadUrl": "https://my.pgp-hms.org/user_file/download/4208",
+    //   "httpStatusDownloadUrl": 302,
+    //   "finalUrl": "https://745d71146d59a622dc9f936edf97db77-99.collections.ac2it.arvadosapi.com/_/genome_James_Jones_v5_Full_20230726173828.zip",
+    //   "httpStatusFinalUrl": 200,
+    //   "filename": "genome_James_Jones_v5_Full_20230726173828.zip",
+    //   "filenameExtension": "zip",
+    //   "innerFilename": "genome_James_Jones_v5_Full_20230726173828.txt"
+    // },
     participants.push({
       id,
       profileUrl,
@@ -573,9 +586,9 @@ async function parseParticipantsCloud(html, limit = 10, options = {}) {
       httpStatusDownloadUrl: resolved.httpStatusDownloadUrl,
       finalUrl: resolved.finalUrl,
       httpStatusFinalUrl: resolved.httpStatusFinalUrl,
-      fileName: resolved.fileName,
-      fileExtension: resolved.fileExtension,
-      innerFileName
+      filename: resolved.filename,
+      filenameExtension: resolved.filenameExtension,
+      innerFilename
     });
 
     if (participants.length % batchSize === 0) {
@@ -588,7 +601,7 @@ async function parseParticipantsCloud(html, limit = 10, options = {}) {
 
 
 //follows redirects to get the real URL/filename - used in parseParticipantsCloud() 
-//participant row → metadata + downloadUrl + httpStatusDownloadUrl + finalUrl + httpStatusFinalUrl + fileName
+//participant row → metadata + downloadUrl + httpStatusDownloadUrl + finalUrl + httpStatusFinalUrl + filename
 // httpStatusDownloadUrl: raw status of `downloadUrl` BEFORE following redirects (e.g. 302).
 //   If downloadUrl responds 2xx directly, this is the string "no redirect" instead of a code.
 // httpStatusFinalUrl: status of the URL we'd actually download from (e.g. 200 after a 302,
@@ -599,8 +612,8 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
     httpStatusDownloadUrl: null,
     httpStatusFinalUrl: null,
     finalUrl: null,
-    fileName: null,
-    fileExtension: null
+    filename: null,
+    filenameExtension: null
   };
   }
 
@@ -659,8 +672,8 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
       httpStatusDownloadUrl,
       httpStatusFinalUrl,
       finalUrl,
-      fileName: null,
-      fileExtension: null
+      filename: null,
+      filenameExtension: null
     };
   }
 
@@ -669,13 +682,13 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
   // Prefer Content-Disposition filename over the URL's last segment, because some PGP
   // endpoints (e.g. /user_file/download/N) serve the file directly without redirecting
   // and the URL contains only a numeric id.
-  let fileName = dispositionName || (cleanUrl.split("/").pop() || null);
-  let fileExtension = parseExt(fileName);
+  let filename = dispositionName || (cleanUrl.split("/").pop() || null);
+  let filenameExtension = parseExt(filename);
 
   // Fallback: some servers don't send Content-Disposition on HEAD. If we still don't
   // know the file type and we're not at a directory listing, retry with GET and cancel
   // the body so we never download the file itself.
-  if (!fileExtension && finalUrl && !finalUrl.endsWith("/_/")) {
+  if (!filenameExtension && finalUrl && !finalUrl.endsWith("/_/")) {
     try {
       const getResp = await fetch(downloadUrl, {
         method: "GET",
@@ -689,8 +702,8 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
         finalUrl = getResp.url || finalUrl;
         cleanUrl = finalUrl.split("?")[0];
         dispositionName = getFilenameFromContentDisposition(getResp.headers.get("content-disposition")) || dispositionName;
-        fileName = dispositionName || (cleanUrl.split("/").pop() || fileName);
-        fileExtension = parseExt(fileName);
+        filename = dispositionName || (cleanUrl.split("/").pop() || filename);
+        filenameExtension = parseExt(filename);
       }
     } catch (err) {
       console.warn(`resolveDownloadFilenameCloud: GET fallback failed for ${downloadUrl}: ${err.message}`);
@@ -709,8 +722,8 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
         httpStatusDownloadUrl,
         httpStatusFinalUrl: dirResp.status,
         finalUrl,
-        fileName: null,
-        fileExtension: null
+        filename: null,
+        filenameExtension: null
       };
     }
     const html = await dirResp.text();
@@ -731,8 +744,8 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
         httpStatusDownloadUrl,
         httpStatusFinalUrl: dirResp.status,
         finalUrl,
-        fileName: null,
-        fileExtension: null
+        filename: null,
+        filenameExtension: null
       };
     }
 
@@ -753,8 +766,8 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
       httpStatusDownloadUrl,
       httpStatusFinalUrl: resolvedStatus ?? dirResp.status,
       finalUrl: resolvedFileUrl,
-      fileName: resolvedFileName,
-      fileExtension: resolvedExtension
+      filename: resolvedFileName,
+      filenameExtension: resolvedExtension
     };
   }
 
@@ -762,8 +775,8 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
     httpStatusDownloadUrl,
     httpStatusFinalUrl,
     finalUrl,
-    fileName,
-    fileExtension
+    filename,
+    filenameExtension
   };
 }
 
@@ -847,8 +860,8 @@ async function load23andMeFileCloud_unknwn(path, id = null) {
       txt,
       url: finalUrl,
       filename: getFilenameFromUrl(finalUrl),
-      fileExtension: "txt",
-      innerFileName: null
+      filenameExtension: "txt",
+      innerFilename: null
     };
   }
 
@@ -910,8 +923,8 @@ if (lowerResolvedUrl.endsWith(".vcf.gz")) {
     buffer,
     url: resolvedFileUrl,
     filename: getFilenameFromUrl(resolvedFileUrl),
-    fileExtension: "vcf.gz",
-    innerFileName: null
+    filenameExtension: "vcf.gz",
+    innerFilename: null
   };
 }
 
@@ -928,8 +941,8 @@ if (lowerResolvedUrl.endsWith(".vcf")) {
     txt,
     url: resolvedFileUrl,
     filename: getFilenameFromUrl(resolvedFileUrl),
-    fileExtension: "vcf",
-    innerFileName: null
+    filenameExtension: "vcf",
+    innerFilename: null
   };
 }
 
@@ -949,8 +962,8 @@ if (lowerResolvedUrl.endsWith("_vcf.txt") || lowerResolvedUrl.endsWith(".vcf.txt
     txt,
     url: resolvedFileUrl,
     filename: vcfName,
-    fileExtension: "vcf.txt",
-    innerFileName: null
+    filenameExtension: "vcf.txt",
+    innerFilename: null
   };
 }
 
@@ -966,8 +979,8 @@ if (lowerResolvedUrl.endsWith("_vcf.txt") || lowerResolvedUrl.endsWith(".vcf.txt
         txt,
         url: resolvedFileUrl,
         filename: getFilenameFromUrl(resolvedFileUrl),
-        fileExtension: "txt",
-        innerFileName: null
+        filenameExtension: "txt",
+        innerFilename: null
       };
     }
 
@@ -1014,7 +1027,7 @@ function getFilenameFromContentDisposition(header) {
 // Handles responses where the URL extension is unknown (e.g. /user_file/download/N).
 // "Describe, don't decide": classify the bytes and return either { txt, ... } for plain
 // text or { buffer, ... } for binary formats. Callers (e.g. Cloud Run index.mjs) then
-// choose what to save based on fileExtension.
+// choose what to save based on filenameExtension.
 async function extractFromUnknownResponse(response, finalUrl, source, id = null, options = {}) {
   const {
     requireVersionLabel = true
@@ -1062,9 +1075,9 @@ async function extractFromUnknownResponse(response, finalUrl, source, id = null,
       buffer: Buffer.from(arrayBuf),
       url: finalUrl,
       filename,
-      fileExtension: "pdf",
+      filenameExtension: "pdf",
       contentType: contentType || "application/pdf",
-      innerFileName: null
+      innerFilename: null
     };
   }
   if (isPng) {
@@ -1073,9 +1086,9 @@ async function extractFromUnknownResponse(response, finalUrl, source, id = null,
       buffer: Buffer.from(arrayBuf),
       url: finalUrl,
       filename,
-      fileExtension: "png",
+      filenameExtension: "png",
       contentType: contentType || "image/png",
-      innerFileName: null
+      innerFilename: null
     };
   }
   if (isJpeg) {
@@ -1084,9 +1097,9 @@ async function extractFromUnknownResponse(response, finalUrl, source, id = null,
       buffer: Buffer.from(arrayBuf),
       url: finalUrl,
       filename,
-      fileExtension: "jpg",
+      filenameExtension: "jpg",
       contentType: contentType || "image/jpeg",
-      innerFileName: null
+      innerFilename: null
     };
   }
   if (isGzip) {
@@ -1097,9 +1110,9 @@ async function extractFromUnknownResponse(response, finalUrl, source, id = null,
       buffer: Buffer.from(arrayBuf),
       url: finalUrl,
       filename,
-      fileExtension: gzExt,
+      filenameExtension: gzExt,
       contentType: contentType || "application/gzip",
-      innerFileName: null
+      innerFilename: null
     };
   }
 
@@ -1124,9 +1137,9 @@ async function extractFromUnknownResponse(response, finalUrl, source, id = null,
     txt,
     url: finalUrl,
     filename,
-    fileExtension: textExt,
+    filenameExtension: textExt,
     contentType: contentType || "text/plain",
-    innerFileName: null
+    innerFilename: null
   };
 }
 
@@ -1182,9 +1195,9 @@ async function extractTxtFromZipResponse(response, zipUrl, source, id = null, op
     txt,
     url: zipUrl,
     filename: targetFile.name.split("/").pop(),
-    fileExtension: "txt",
+    filenameExtension: "txt",
     sourceZip: getFilenameFromUrl(zipUrl),
-    innerFileName: targetFile.name.split("/").pop()
+    innerFilename: targetFile.name.split("/").pop()
   };
 }
 

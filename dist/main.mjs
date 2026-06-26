@@ -3105,9 +3105,9 @@ function renderProfilesTable(participants) {
         const published = escapeHtml(p.publishedDate || '');
         const profileUrl = p.profileUrl || `https://my.pgp-hms.org/profile/${p.id}`;
         const fileUrl = p.finalUrl || p.downloadUrl || null;
-        const displayName = p.innerFileName || p.fileName || (fileUrl ? 'Download' : 'N/A');
+        const displayName = p.innerFilename || p.filename || (fileUrl ? 'Download' : 'N/A');
         const fileName = escapeHtml(displayName);
-        const ext = escapeHtml(p.fileExtension || '');
+        const ext = escapeHtml(p.filenameExtension || '');
         const fileCell = fileUrl
             ? `<a href="${escapeHtml(fileUrl)}" target="_blank" rel="noopener noreferrer">${fileName}</a>`
             : 'N/A';
