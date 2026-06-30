@@ -15,18 +15,15 @@
 // ZIP files should be extracted into TXT by the SDK.
 
 // Scans the downloaded TXT header for genome build
-// It reads only the first 128 KB:
-// HEADER_READ_BYTES
-// and looks for:
-// build 36
-// build 37
-// build 38
-// GRCh37
-// hg19
-// Then it adds:
-// "genomeBuild": "37"
+// The SDK loader (load23andMeFileCloud_unknwn) inspects the first 128 KB of the
+// TXT it returns and attaches:
+//   loaded.genomeBuild              -> "36" | "37" | "38" | null
+//   loaded.matchedLineGenomeBuild   -> the header line that produced the match
+// Recognized markers: "build 36/37/38", "GRCh36/37/38", "hg18/19/38".
+// This worker just copies those fields into the output JSON as:
+//   "genomeBuild": "37"
 // or:
-// "genomeBuild": null
+//   "genomeBuild": null
 // Saves the TXT file and updated participant list
 
 // It saves TXT files to:
@@ -48,57 +45,8 @@ const BUCKET_NAME = process.env.BUCKET_NAME || "all23_06252026";
 const LIMIT = Number(process.env.LIMIT || 6);
 const BATCH_SIZE = Number(process.env.BATCH_SIZE || 10);
 
-const HEADER_READ_BYTES = Number(process.env.HEADER_READ_BYTES || 128 * 1024);
-
 const storage = new Storage();
 const bucket = storage.bucket(BUCKET_NAME);
-
-function detectBuildFromHeaderLine(line) {
-  const clean = line.trim();
-
-  const buildMatch = clean.match(/\bbuild\s*[:=]?\s*(36|37|38)\b/i);
-  if (buildMatch) return buildMatch[1];
-
-  const grchMatch = clean.match(/\bGRCh\s*[-_ ]?(36|37|38)\b/i);
-  if (grchMatch) return grchMatch[1];
-
-  const hgMatch = clean.match(/\bhg\s*[-_ ]?(18|19|38)\b/i);
-  if (hgMatch) {
-    if (hgMatch[1] === "18") return "36";
-    if (hgMatch[1] === "19") return "37";
-    if (hgMatch[1] === "38") return "38";
-  }
-
-  return null;
-}
-
-function findBuildInHeader(text) {
-  const headerText = String(text || "").slice(0, HEADER_READ_BYTES);
-  const lines = headerText.split(/\r?\n/);
-
-  for (const line of lines) {
-    if (!line.startsWith("#")) {
-      if (line.trim()) break;
-      continue;
-    }
-
-    const genomeBuild = detectBuildFromHeaderLine(line);
-
-    if (genomeBuild) {
-      return {
-        genomeBuild,
-        matchedLine: line
-      };
-    }
-  }
-
-  return {
-    genomeBuild: null,
-    matchedLine: null
-  };
-}
-
-
 
 function getDataToSave(loaded) {
   if (typeof loaded.txt === "string") {
@@ -133,14 +81,6 @@ function getSizeMB(data) {
   return Number((sizeBytes / 1024 / 1024).toFixed(2));
 }
 
-function getTextForBuild(data) {
-  if (typeof data === "string") {
-    return data.slice(0, HEADER_READ_BYTES);
-  }
-
-  return data.toString("utf8", 0, HEADER_READ_BYTES);
-}
-
 function makeNullBuildParticipant(participant, reason) {
   return {
     ...participant,
@@ -168,8 +108,7 @@ async function main() {
   console.log({
     BUCKET_NAME,
     LIMIT,
-    BATCH_SIZE,
-    HEADER_READ_BYTES
+    BATCH_SIZE
   });
 
   const participants = await fetch23andMeParticipants(LIMIT, {
@@ -279,13 +218,14 @@ async function main() {
 
    
 
-      const savedFilename = makeSavedFilename(participant.id, participant.filename);
+      // For ZIP sources, loaded.filename is the inner .txt (set by extractTxtFromZipResponse),
+      // so this saves the extracted .txt under <id>_<innerFilename>.
+      const savedFilename = makeSavedFilename(
+        participant.id,
+        loaded.filename || participant.innerFilename || participant.filename
+      );
 
       const outputPath = `geneticFiles/${savedFilename}`;
-
-
-      const textForBuild = getTextForBuild(dataToSave);
-      const buildResult = findBuildInHeader(textForBuild);
 
       await bucket.file(outputPath).save(dataToSave, {
         contentType: "text/plain"
@@ -295,18 +235,18 @@ async function main() {
 
       updatedParticipants.push({
         ...participant,
-        genomeBuild: buildResult.genomeBuild,
+        genomeBuild: loaded.genomeBuild,
         genomeBuildFiles: [
         {
           downloadUrl: participant.downloadUrl || null,
-          filename: participant.filename || null,
+          filename: loaded.filename || participant.innerFilename || participant.filename || null,
 
           // saved file in your bucket
           gcsPath: outputPath,
           gcsfilename: savedFilename,
 
           sizeMB,
-          matchedLine: buildResult.matchedLine
+          matchedLine: loaded.matchedLineGenomeBuild
         }
       ]
       });
@@ -316,8 +256,8 @@ async function main() {
       console.log(`Saved ${savedCount}: gs://${BUCKET_NAME}/${outputPath}`);
       console.log({
         id: participant.id,
-        genomeBuild: buildResult.genomeBuild,
-        matchedLine: buildResult.matchedLine
+        genomeBuild: loaded.genomeBuild,
+        matchedLine: loaded.matchedLineGenomeBuild
       });
     } catch (err) {
       failedCount++;

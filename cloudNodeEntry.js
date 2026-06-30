@@ -9,7 +9,10 @@ import {
   parseParticipantsCloud,
   resolveDownloadFilenameCloud,
   getInnerTxtNameFromZipUrl,
-  load23andMeFileCloud_unknwn
+  load23andMeFileCloud_unknwn,
+  findValid23AndMeHeaderLine,
+  detectBuildFromHeaderLine,
+  findBuildInHeader
 } from "./src/js/cloud/pgp_node.js";
 
 export {
@@ -23,5 +26,8 @@ export {
   parseParticipantsCloud,
   resolveDownloadFilenameCloud,
   getInnerTxtNameFromZipUrl,
-  load23andMeFileCloud_unknwn
+  load23andMeFileCloud_unknwn,
+  findValid23AndMeHeaderLine,
+  detectBuildFromHeaderLine,
+  findBuildInHeader
 };
