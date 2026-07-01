@@ -110,30 +110,39 @@ async function parse23Txt(txt, url) {
 
 /**
  * Load and parse a local 23andMe file.
- * @param {string} path - Path to the file (local .txt or remote PGP URL)
+ * @param {string|File|FileList} path - Path to the file (local .txt or remote PGP URL) or a File/FileList
  * @param {string} [id] - Optional ID for caching (extracted from path if not provided)
  * @param {boolean} [cache=true] - Whether to read/write local cache
- * @returns {Promise<Object>} Parsed genome data
+ * @param {{ txt?: boolean }} [options] - `txt: true` includes the raw file contents in the return; default omits it.
+ * @returns {Promise<{url:string, finalUrl:string, filename:string, meta:string, cols:string[], dt:string[][], txt?:string}>}
  */
-async function load23andMeFile(path, id = null, cache = true) {
-  //console.log(`load23andMeFile(): Starting to load data data with id: ${id}`);
-  // Helper to cache and return parsed data
-  async function cacheAndReturn(parsedData, cacheKeyValue, idValue) {
-    if (!cache) {
-      return parsedData;
-    }
+async function load23andMeFile(path, id = null, cache = true, options = {}) {
+  const { txt: includeTxt = false } = options;
 
-    try {
-      await localforage.setItem(cacheKeyValue, {
-        data: parsedData,
-        cachedAt: Date.now()
-      });
-      console.log(`load23andMeFile(): Successfully cached data for ${cacheKeyValue}`);
-      await limitStorage([idValue]);
-    } catch (err) {
-      console.warn(`load23andMeFile(): Failed to cache ${cacheKeyValue}:`, err);
+  // Strips `txt` from the returned object when includeTxt is false and always attaches `finalUrl`.
+  function shapeReturn(parsedData, finalUrl) {
+    const shaped = { ...parsedData, finalUrl };
+    if (!includeTxt) delete shaped.txt;
+    return shaped;
+  }
+
+  // Caches the parsed data with `txt` and `finalUrl` included so later calls with
+  // { txt: true } can still be served from cache. Returns the shaped view for this call.
+  async function cacheAndReturn(parsedData, cacheKeyValue, idValue, finalUrl) {
+    const enriched = { ...parsedData, finalUrl };
+    if (cache) {
+      try {
+        await localforage.setItem(cacheKeyValue, {
+          data: enriched,
+          cachedAt: Date.now()
+        });
+        console.log(`load23andMeFile(): Successfully cached data for ${cacheKeyValue}`);
+        await limitStorage([idValue]);
+      } catch (err) {
+        console.warn(`load23andMeFile(): Failed to cache ${cacheKeyValue}:`, err);
+      }
     }
-    return parsedData;
+    return shapeReturn(enriched, finalUrl);
   }
 
   // ── File object / FileList branch ───────────────────────────────────────────
@@ -159,7 +168,7 @@ async function load23andMeFile(path, id = null, cache = true) {
         const cached = await localforage.getItem(fileCacheKey);
         if (cached && cached.data) {
           console.log(`load23andMeFile(): Cache hit for ${fileCacheKey}`);
-          return cached.data;
+          return shapeReturn(cached.data, cached.data.finalUrl || file.name);
         }
       } catch (err) {
         console.warn(`load23andMeFile(): Cache read failed for ${fileCacheKey}:`, err);
@@ -168,7 +177,7 @@ async function load23andMeFile(path, id = null, cache = true) {
 
     const txt = await file.text();
     const parsed = await parse23Txt(txt, file.name);
-    return cacheAndReturn(parsed, fileCacheKey, fileId);
+    return cacheAndReturn(parsed, fileCacheKey, fileId, file.name);
   }
   // ── String path / URL branch ─────────────────────────────────────────────────
 
@@ -192,7 +201,7 @@ async function load23andMeFile(path, id = null, cache = true) {
       const cached = await localforage.getItem(cacheKey);
       if (cached && cached.data) {
         console.log(`load23andMeFile(): Cache hit for ${cacheKey}`, cached);
-        return cached.data;
+        return shapeReturn(cached.data, cached.data.finalUrl || path);
       }
     } catch (err) {
       console.warn(`load23andMeFile(): Cache read failed for ${cacheKey}:`, err);
@@ -221,7 +230,7 @@ async function load23andMeFile(path, id = null, cache = true) {
     }
 
     const txt = await response.text();
-    return cacheAndReturn(await parse23Txt(txt, path), cacheKey, id);
+    return cacheAndReturn(await parse23Txt(txt, path), cacheKey, id, path);
   }
 
   // Remote PGP / ZIP URLs
@@ -317,7 +326,7 @@ async function load23andMeFile(path, id = null, cache = true) {
     }
 
     console.log(`load23andMeFile(): Loaded direct TXT from ${successSource}`);
-    return cacheAndReturn(await parse23Txt(txt, finalUrl), cacheKey, id);
+    return cacheAndReturn(await parse23Txt(txt, finalUrl), cacheKey, id, finalUrl);
   }
 
   // 2) Direct ZIP
@@ -360,7 +369,7 @@ async function load23andMeFile(path, id = null, cache = true) {
     if (!txt || !txt.trim()) {
       throw new Error(`Extracted text file is empty: ${targetFile.name}`);
     }
-    return cacheAndReturn(await parse23Txt(txt, targetFile.name), cacheKey, id);
+    return cacheAndReturn(await parse23Txt(txt, targetFile.name), cacheKey, id, finalUrl);
   }
 
   // 3) Directory listing / collection root
@@ -405,7 +414,7 @@ async function load23andMeFile(path, id = null, cache = true) {
         throw new Error(`Directory TXT file is empty: ${resolvedFileUrl}`);
       }
 
-      return cacheAndReturn(await parse23Txt(txt, resolvedFileUrl), cacheKey, id);
+      return cacheAndReturn(await parse23Txt(txt, resolvedFileUrl), cacheKey, id, resolvedFileUrl);
     }
 
     if (resolvedFileUrl.toLowerCase().endsWith(".zip")) {
@@ -440,7 +449,7 @@ async function load23andMeFile(path, id = null, cache = true) {
       if (!txt || !txt.trim()) {
         throw new Error(`Extracted nested ZIP text file is empty: ${targetFile.name}`);
       }
-      return cacheAndReturn(await parse23Txt(txt, targetFile.name), cacheKey, id);
+      return cacheAndReturn(await parse23Txt(txt, targetFile.name), cacheKey, id, resolvedFileUrl);
     }
     throw new Error(`Unsupported file type found in directory: ${resolvedFileUrl}`);
   }

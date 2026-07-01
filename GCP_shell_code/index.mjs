@@ -82,6 +82,8 @@ function getSizeMB(data) {
 function makeNullBuildParticipant(participant, reason) {
   return {
     ...participant,
+    valid23File: false,
+    matchedLineValid23File: null,
     genomeBuild: null,
     genomeBuildFiles: [],
     processingNote: reason
@@ -261,6 +263,8 @@ async function main() {
 
       updatedParticipants.push({
         ...participant,
+        valid23File: false,
+        matchedLineValid23File: null,
         genomeBuild: null,
         genomeBuildFiles: [],
         processingNote: `FAILED: ${err.message}`
