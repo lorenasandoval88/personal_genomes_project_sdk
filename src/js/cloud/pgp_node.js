@@ -143,13 +143,20 @@ async function fetchDirect(target, options = {}) {
     } : undefined
   });
 
+  const finalUrl = response.url || target;
+
   if (!response.ok) {
-    throw new Error(`Direct fetch failed for ${target}: HTTP ${response.status}`);
+    const err = new Error(`Direct fetch failed for ${target}: HTTP ${response.status} (finalUrl: ${finalUrl})`);
+    err.status = response.status;
+    err.requestedUrl = target;
+    err.finalUrl = finalUrl;
+    err.source = "direct";
+    throw err;
   }
 
   return {
     response,
-    finalUrl: response.url || target,
+    finalUrl,
     source: "direct"
   };
 }
@@ -939,9 +946,7 @@ async function load23andMeFileCloud_unknwn(path, id = null) {
     source
   } = await fetchDirect(path);
 
-  if (!finalResponse.ok) {
-    throw new Error(`Failed to load ${path}: HTTP ${finalResponse.status}`);
-  }
+ 
 
   const lowerFinalUrl = finalUrl.toLowerCase().split("?")[0];
 
@@ -1003,7 +1008,13 @@ async function load23andMeFileCloud_unknwn(path, id = null) {
     });
 
     if (!nestedResponse.ok) {
-      throw new Error(`Failed to fetch file from directory: HTTP ${nestedResponse.status}`);
+      const nestedFinalUrl = nestedResponse.url || resolvedFileUrl;
+      const err = new Error(`Failed to fetch file from directory: HTTP ${nestedResponse.status} (finalUrl: ${nestedFinalUrl})`);
+      err.status = nestedResponse.status;
+      err.requestedUrl = resolvedFileUrl;
+      err.finalUrl = nestedFinalUrl;
+      err.source = "directory";
+      throw err;
     }
 
     const lowerResolvedUrl = resolvedFileUrl.toLowerCase().split("?")[0];
