@@ -7,4 +7,4 @@ RUN npm install
 
 COPY . .
 
-CMD ["node", "index.js"]
+CMD ["node", "--expose-gc", "--max-old-space-size=28672", "index.js"]
