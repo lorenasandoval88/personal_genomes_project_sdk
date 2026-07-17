@@ -374,9 +374,9 @@ async function parse23Txt(txt, url) {
 // Strict genotype-only loader: returns parse23Txt output and rejects any file that
 // doesn't carry a v3/v4/v5 label. For the permissive cloud loader that also handles
 // VCF/PDF/PNG/etc., see load23andMeFileCloud_unknwn.
-async function load23andMeFile(path, id = null) {
+async function get23Txt(path, id = null) {
   if (typeof path !== "string") {
-    throw new TypeError("load23andMeFile expects a URL/path string in the Node-safe SDK");
+    throw new TypeError("get23Txt expects a URL/path string in the Node-safe SDK");
   }
 
   if (!id) {
@@ -1359,5 +1359,5 @@ async function extractTxtFromZipResponse(response, zipUrl, source, id = null, op
   };
 }
 
-export { JSZip, allUsersMetaDataByType_fast, detectBuildFromHeaderLine, fetch23andMeParticipants, fetchAvailableDataTypes, fetchProfile, findBuildInHeader, findValid23AndMeHeaderLine, getInnerTxtNameFromZipUrl, load23andMeFile, load23andMeFileCloud_unknwn, parse23Txt, parseParticipantsCloud, resolveDownloadFilenameCloud };
+export { JSZip, allUsersMetaDataByType_fast, detectBuildFromHeaderLine, fetch23andMeParticipants, fetchAvailableDataTypes, fetchProfile, findBuildInHeader, findValid23AndMeHeaderLine, get23Txt, getInnerTxtNameFromZipUrl, load23andMeFileCloud_unknwn, parse23Txt, parseParticipantsCloud, resolveDownloadFilenameCloud };
 //# sourceMappingURL=cloud_sdk.mjs.map

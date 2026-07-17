@@ -336,9 +336,9 @@ async function parse23Txt(txt, url) {
 // Strict genotype-only loader: returns parse23Txt output and rejects any file that
 // doesn't carry a v3/v4/v5 label. For the permissive cloud loader that also handles
 // VCF/PDF/PNG/etc., see load23andMeFileCloud_unknwn.
-async function load23andMeFile(path, id = null) {
+async function get23Txt(path, id = null) {
   if (typeof path !== "string") {
-    throw new TypeError("load23andMeFile expects a URL/path string in the Node-safe SDK");
+    throw new TypeError("get23Txt expects a URL/path string in the Node-safe SDK");
   }
 
   if (!id) {
@@ -1326,7 +1326,7 @@ export {
   fetchAvailableDataTypes,
   allUsersMetaDataByType_fast,
   fetchProfile,
-  load23andMeFile,
+  get23Txt,
   parse23Txt,
   fetch23andMeParticipants,
   parseParticipantsCloud,

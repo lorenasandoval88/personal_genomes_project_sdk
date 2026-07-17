@@ -282,9 +282,9 @@ async function parse23Txt(txt, url) {
 // Directory listing (/_/) — fetches the HTML listing, finds a versioned .zip or .txt link, then falls into case 2 or 3
 // All paths return the result of parse23Txt, which produces { txt, url, filename, meta, cols, dt }.
 
-async function load23andMeFile(path, id = null) {
+async function get23Txt(path, id = null) {
   if (typeof path !== "string") {
-    throw new TypeError("load23andMeFile expects a URL/path string in the Node-safe SDK");
+    throw new TypeError("get23Txt expects a URL/path string in the Node-safe SDK");
   }
 
   if (!id) {
@@ -926,7 +926,7 @@ export {
   fetchAvailableDataTypes,
   allUsersMetaDataByType_fast,
   fetchProfile,
-  load23andMeFile,
+  get23Txt,
   parse23Txt,
   fetch23andMeParticipants,
   parseParticipantsCloud,

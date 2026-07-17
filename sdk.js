@@ -6,7 +6,7 @@ export {
 };
 export {
   JSZip,
-  load23andMeFile,
+  get23Txt,
   parse23Txt
 }
 from './src/js/get23_loadTxts.js';
