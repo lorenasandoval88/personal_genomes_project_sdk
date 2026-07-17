@@ -3118,7 +3118,7 @@ async function get23Txt(path, id = null, cache = true, options = {}) {
     },
     {
       name: "github-pages-proxy",
-      url: "https://lorenasandoval88.github.io/get-23andme-data/pgp-stats"
+      url: "https://lorenasandoval88.github.io/personal_genomes_project_sdk/pgp-stats"
     }
   ];
   let finalResponse = null;
@@ -3444,7 +3444,7 @@ async function displayStats(options = {}) {
             // { name: "powershell-proxy", url: "http://localhost:3000/pgp-stats" },
             { name: "allorigins", url: `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}` },
             { name: "corsproxy", url: `https://corsproxy.io/?${target}` },
-            { name: "github-pages-proxy", url: "https://lorenasandoval88.github.io/get-23andme-data/pgp-stats" }
+            { name: "github-pages-proxy", url: "https://lorenasandoval88.github.io/personal_genomes_project_sdk/pgp-stats" }
         ];
 
         let html = null;

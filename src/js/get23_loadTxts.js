@@ -255,7 +255,7 @@ async function get23Txt(path, id = null, cache = true, options = {}) {
     },
     {
       name: "github-pages-proxy",
-      url: "https://lorenasandoval88.github.io/get-23andme-data/pgp-stats"
+      url: "https://lorenasandoval88.github.io/personal_genomes_project_sdk/pgp-stats"
     }
   ];
 
