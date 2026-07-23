@@ -335,7 +335,7 @@ async function parse23Txt(txt, url) {
 
 // Strict genotype-only loader: returns parse23Txt output and rejects any file that
 // doesn't carry a v3/v4/v5 label. For the permissive cloud loader that also handles
-// VCF/PDF/PNG/etc., see load23andMeFileCloud_unknwn.
+// VCF/PDF/PNG/etc., see get23TxtCloud_unknwn.
 async function get23Txt(path, id = null) {
   if (typeof path !== "string") {
     throw new TypeError("get23Txt expects a URL/path string in the Node-safe SDK");
@@ -482,7 +482,7 @@ async function get23Txt(path, id = null) {
 //fetch23andMeParticipants() gets the PGP page, 
 // parseParticipantsCloud() extracts rows, 
 // resolveDownloadFilenameCloud() follows redirects to get the real URL/filename, and 
-// load23andMeFileCloud() downloads the actual 23andMe text from direct .txt, .zip, or /_/ directory links.
+// get23TxtCloud() downloads the actual 23andMe text from direct .txt, .zip, or /_/ directory links.
 
 // fetch23andMeParticipants()  peekinside summary: peekInsideZip: when true, ZIP entries also fetch and unzip the file to record the inner txt filename as innerFilename. Slow (downloads each zip), so default off.
 // Do not remove peekInsideZip from the SDK.
@@ -926,9 +926,9 @@ const NO_HEADER_SCAN = Object.freeze({
 // a v3/v4/v5 genome-version label in the filename or zip entry.
 // One warning
 // This function will accept any .txt, not just confirmed 23andMe genotype TXT.
-async function load23andMeFileCloud_unknwn(path, id = null) {
+async function get23TxtCloud_unknwn(path, id = null) {
   if (typeof path !== "string") {
-    throw new TypeError("load23andMeFileCloud_unknwn expects a URL string");
+    throw new TypeError("get23TxtCloud_unknwn expects a URL string");
   }
 
   if (!/^https?:\/\//i.test(path)) {
@@ -1332,7 +1332,7 @@ export {
   parseParticipantsCloud,
   resolveDownloadFilenameCloud,
   getInnerTxtNameFromZipUrl,
-  load23andMeFileCloud_unknwn,
+  get23TxtCloud_unknwn,
   findValid23AndMeHeaderLine,
   detectBuildFromHeaderLine,
   findBuildInHeader

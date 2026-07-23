@@ -13,7 +13,7 @@
  *
  * Workflow after the participant list is obtained (same either way):
  * For each participant whose filenameExtension is "txt" or "zip":
- *    load23andMeFileCloud_unknwn(downloadUrl, id) downloads the file and:
+ *    get23TxtCloud_unknwn(downloadUrl, id) downloads the file and:
  *      - for .zip:  extracts the inner .txt (loaded.filename = inner name,
  *                   loaded.innerFilename = inner name)
  *      - for .txt:  returns the TXT as-is
@@ -65,7 +65,7 @@ import { Storage } from "@google-cloud/storage";
 
 import {
   fetch23andMeParticipants,
-  load23andMeFileCloud_unknwn
+  get23TxtCloud_unknwn
 } from "personal_genomes_project_sdk/cloud_sdk.mjs";
 
 const storage = new Storage();
@@ -321,7 +321,7 @@ async function main() {
       console.log(`Download URL: ${participant.downloadUrl}`);
       console.log(`File extension from metadata: ${participant.filenameExtension}`);
 
-      const loaded = await load23andMeFileCloud_unknwn(
+      const loaded = await get23TxtCloud_unknwn(
         participant.downloadUrl,
         participant.id
       );

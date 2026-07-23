@@ -424,7 +424,7 @@ async function get23Txt(path, id = null) {
 //fetch23andMeParticipants() gets the PGP page, 
 // parseParticipantsCloud() extracts rows, 
 // resolveDownloadFilenameCloud() follows redirects to get the real URL/filename, and 
-// load23andMeFileCloud() downloads the actual 23andMe text from direct .txt, .zip, or /_/ directory links.
+// get23TxtCloud() downloads the actual 23andMe text from direct .txt, .zip, or /_/ directory links.
 
  // PGP 23andMe HTML page → participant list. Uses parseParticipants() and resolveDownloadFilename() to get actual filenames, limit - Number of participants to return (default: 10)
 async function fetch23andMeParticipants(limit = 10, options = {}) {
@@ -575,9 +575,9 @@ async function resolveDownloadFilenameCloud(downloadUrl) {
 
 // This is the main txt downloader.
 //downloads the actual 23andMe text from direct .txt, .zip, or /_/ directory
-async function load23andMeFileCloud(path, id = null) {
+async function get23TxtCloud(path, id = null) {
   if (typeof path !== "string") {
-    throw new TypeError("load23andMeFileCloud expects a URL string");
+    throw new TypeError("get23TxtCloud expects a URL string");
   }
 
   if (!/^https?:\/\//i.test(path)) {
@@ -683,13 +683,13 @@ async function load23andMeFileCloud(path, id = null) {
 
 
 ////////////////////////////////////////////////////////////////
-// Same as load23andMeFileCloud but accepts any .txt or .zip without requiring
+// Same as get23TxtCloud but accepts any .txt or .zip without requiring
 // a v3/v4/v5 genome-version label in the filename or zip entry.
 // One warning
 // This function will accept any .txt, not just confirmed 23andMe genotype TXT.
-async function load23andMeFileCloud_unknwn(path, id = null) {
+async function get23TxtCloud_unknwn(path, id = null) {
   if (typeof path !== "string") {
-    throw new TypeError("load23andMeFileCloud_unknwn expects a URL string");
+    throw new TypeError("get23TxtCloud_unknwn expects a URL string");
   }
 
   if (!/^https?:\/\//i.test(path)) {
@@ -931,6 +931,6 @@ export {
   fetch23andMeParticipants,
   parseParticipantsCloud,
   resolveDownloadFilenameCloud,
-  load23andMeFileCloud,
-  load23andMeFileCloud_unknwn
+  get23TxtCloud,
+  get23TxtCloud_unknwn
 };

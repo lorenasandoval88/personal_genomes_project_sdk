@@ -366,10 +366,10 @@ async function parse23Txt(txt, url) {
 
 // Strict genotype-only loader: returns parse23Txt output and rejects any file that
 // doesn't carry a v3/v4/v5 label. For the permissive cloud loader that also handles
-// VCF/PDF/PNG/etc., see load23andMeFileCloud_unknwn.
-async function load23andMeFile(path, id = null) {
+// VCF/PDF/PNG/etc., see get23TxtCloud_unknwn.
+async function get23Txt(path, id = null) {
   if (typeof path !== "string") {
-    throw new TypeError("load23andMeFile expects a URL/path string in the Node-safe SDK");
+    throw new TypeError("get23Txt expects a URL/path string in the Node-safe SDK");
   }
 
   if (!id) {
@@ -513,7 +513,7 @@ async function load23andMeFile(path, id = null) {
 //fetch23andMeParticipants() gets the PGP page, 
 // parseParticipantsCloud() extracts rows, 
 // resolveDownloadFilenameCloud() follows redirects to get the real URL/filename, and 
-// load23andMeFileCloud() downloads the actual 23andMe text from direct .txt, .zip, or /_/ directory links.
+// get23TxtCloud() downloads the actual 23andMe text from direct .txt, .zip, or /_/ directory links.
 
 // PGP 23andMe HTML page → participant list. Uses parseParticipants() and resolveDownloadFilename() to get actual filenames, limit - Number of participants to return (default: 10)
 
@@ -846,9 +846,9 @@ async function getInnerTxtNameFromZipUrl(zipUrl) {
 // a v3/v4/v5 genome-version label in the filename or zip entry.
 // One warning
 // This function will accept any .txt, not just confirmed 23andMe genotype TXT.
-async function load23andMeFileCloud_unknwn(path, id = null) {
+async function get23TxtCloud_unknwn(path, id = null) {
   if (typeof path !== "string") {
-    throw new TypeError("load23andMeFileCloud_unknwn expects a URL string");
+    throw new TypeError("get23TxtCloud_unknwn expects a URL string");
   }
 
   if (!/^https?:\/\//i.test(path)) {
@@ -1226,5 +1226,5 @@ async function extractTxtFromZipResponse(response, zipUrl, source, id = null, op
   };
 }
 
-export { JSZip, allUsersMetaDataByType_fast, fetch23andMeParticipants, fetchAvailableDataTypes, fetchProfile, getInnerTxtNameFromZipUrl, load23andMeFile, load23andMeFileCloud_unknwn, parse23Txt, parseParticipantsCloud, resolveDownloadFilenameCloud };
+export { JSZip, allUsersMetaDataByType_fast, fetch23andMeParticipants, fetchAvailableDataTypes, fetchProfile, getInnerTxtNameFromZipUrl, get23Txt, get23TxtCloud_unknwn, parse23Txt, parseParticipantsCloud, resolveDownloadFilenameCloud };
 //# sourceMappingURL=cloud_sdk.browser.mjs.map

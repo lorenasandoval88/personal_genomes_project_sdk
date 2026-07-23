@@ -9,7 +9,7 @@ import {
   parseParticipantsCloud,
   resolveDownloadFilenameCloud,
   getInnerTxtNameFromZipUrl,
-  load23andMeFileCloud_unknwn,
+  get23TxtCloud_unknwn,
   findValid23AndMeHeaderLine,
   detectBuildFromHeaderLine,
   findBuildInHeader
@@ -26,7 +26,7 @@ export {
   parseParticipantsCloud,
   resolveDownloadFilenameCloud,
   getInnerTxtNameFromZipUrl,
-  load23andMeFileCloud_unknwn,
+  get23TxtCloud_unknwn,
   findValid23AndMeHeaderLine,
   detectBuildFromHeaderLine,
   findBuildInHeader

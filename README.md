@@ -4,7 +4,7 @@ A JavaScript SDK and demo application for retrieving, caching, and exploring pub
 The toolkit supports participant discovery, profile lookup, summary statistics, and loading of genotype files for downstream analysis. It ships in two flavors from a single package:
 
 - **Browser SDK** (`personal_genomes_project_sdk`) — runs in the browser with client-side caching through LocalForage, interactive visual summaries, and a developer-friendly API for working with public PGP data.
-- **Node-safe / Cloud SDK** (`personal_genomes_project_sdk/cloud_sdk.mjs`) — runs in Node.js, Cloud Run, Cloud Shell, Cloud Functions, or any server runtime. Provides ingestion-only functions (`fetch23andMeParticipants`, `resolveDownloadFilenameCloud`, `load23andMeFileCloud`, `parse23Txt`, etc.) for fetching and parsing genotype data server-side, with no dependency on `window`, `document`, or `localforage`.
+- **Node-safe / Cloud SDK** (`personal_genomes_project_sdk/cloud_sdk.mjs`) — runs in Node.js, Cloud Run, Cloud Shell, Cloud Functions, or any server runtime. Provides ingestion-only functions (`fetch23andMeParticipants`, `resolveDownloadFilenameCloud`, `get23TxtCloud`, `parse23Txt`, etc.) for fetching and parsing genotype data server-side, with no dependency on `window`, `document`, or `localforage`.
 
 ---
 
