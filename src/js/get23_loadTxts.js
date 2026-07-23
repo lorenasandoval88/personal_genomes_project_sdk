@@ -94,7 +94,8 @@ async function parse23Txt(txt, url) {
   if (n === 0) {
     throw new Error(`Invalid 23andMe file format: missing header in ${url}`);
   }
-  console.log(`running parse23Txt for url ${url}, total rows: ${rows.length}, header rows: ${n}`);
+  const shortUrl = `${String(url || "no url").slice(0, 10)}...`;
+  console.log(`parse23Txt in get23Txt(): url ${shortUrl}`);
   obj.filename = url.split('/').pop() || "unknown_filename";
   obj.meta = rows.slice(0, n - 1).join('\r\n');
   obj.cols = rows[n - 1].replace(/^#\s*/, '').split(/\t/);
