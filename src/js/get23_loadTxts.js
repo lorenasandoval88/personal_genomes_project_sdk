@@ -201,7 +201,7 @@ async function get23Txt(path, id = null, cache = true, options = {}) {
     try {
       const cached = await localforage.getItem(cacheKey);
       if (cached && cached.data) {
-        console.log(`get23Txt(): Cache hit for ${cacheKey}`, cached);
+        console.log(`get23Txt(): Cache hit for ${cacheKey}`);
         return shapeReturn(cached.data, cached.data.finalUrl || path);
       }
     } catch (err) {
