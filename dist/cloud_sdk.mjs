@@ -47,11 +47,11 @@ function hasSupportedGenomeVersionLabel(value = "") {
   return /(^|[^a-z0-9])v(?:3|4|5)(?=[^a-z0-9]|$)/i.test(String(value));
 }
 
-// Throws a descriptive error if `value` does not contain a v3/v4/v5 label.
-// `sourceType` is used only in the error message ("file", "href", "filename", etc.).
+// Logs a notice if `value` does not contain a v3/v4/v5 label. Non-blocking.
+// `sourceType` is used only in the log message ("file", "href", "filename", etc.).
 function assertSupportedGenomeVersionLabel(value, sourceType = "file") {
   if (!hasSupportedGenomeVersionLabel(value)) {
-    throw new Error(`Unsupported ${sourceType}: must include v3, v4, or v5 in name or href (${value})`);
+    console.log(`no version fund in filename (${sourceType}: ${value})`);
   }
 }
 
@@ -431,13 +431,17 @@ async function get23Txt(path, id = null) {
 
     const zip = await JSZip.loadAsync(buffer);
     const zipNames = Object.keys(zip.files);
-    const targetFile = zipNames
+    const txtFiles = zipNames
       .map(name => zip.files[name])
-      .find(file => !file.dir && file.name.toLowerCase().endsWith(".txt") && hasSupportedGenomeVersionLabel(file.name));
+      .filter(file => !file.dir && file.name.toLowerCase().endsWith(".txt"));
+    const targetFile =
+      txtFiles.find(file => hasSupportedGenomeVersionLabel(file.name)) || txtFiles[0];
 
     if (!targetFile) {
-      throw new Error(`No .txt file containing v3, v4, or v5 found inside ZIP from ${path}`);
+      throw new Error(`No .txt file found inside ZIP from ${path}`);
     }
+
+    assertSupportedGenomeVersionLabel(targetFile.name, "zip entry");
 
     const txt = await targetFile.async("string");
     if (!txt || !txt.trim()) {
@@ -455,11 +459,15 @@ async function get23Txt(path, id = null) {
     const hrefs = [...html.matchAll(/href="([^"]+)"/gi)].map(match => match[1]);
     const preferredHref =
       hrefs.find(href => /\.zip$/i.test(href) && hasSupportedGenomeVersionLabel(href)) ||
-      hrefs.find(href => /\.txt$/i.test(href) && hasSupportedGenomeVersionLabel(href));
+      hrefs.find(href => /\.txt$/i.test(href) && hasSupportedGenomeVersionLabel(href)) ||
+      hrefs.find(href => /\.zip$/i.test(href)) ||
+      hrefs.find(href => /\.txt$/i.test(href));
 
     if (!preferredHref) {
-      throw new Error(`No .zip or .txt file containing v3, v4, or v5 found in directory listing for ${path}`);
+      throw new Error(`No .zip or .txt file found in directory listing for ${path}`);
     }
+
+    assertSupportedGenomeVersionLabel(preferredHref, "href");
 
     const resolvedFileUrl = new URL(preferredHref, finalUrl).href;
     const nestedResponse = await fetch(resolvedFileUrl);
@@ -491,13 +499,17 @@ async function get23Txt(path, id = null) {
 
       const zip = await JSZip.loadAsync(nestedBuffer);
       const zipNames = Object.keys(zip.files);
-      const targetFile = zipNames
+      const nestedTxtFiles = zipNames
         .map(name => zip.files[name])
-        .find(file => !file.dir && file.name.toLowerCase().endsWith(".txt") && hasSupportedGenomeVersionLabel(file.name));
+        .filter(file => !file.dir && file.name.toLowerCase().endsWith(".txt"));
+      const targetFile =
+        nestedTxtFiles.find(file => hasSupportedGenomeVersionLabel(file.name)) || nestedTxtFiles[0];
 
       if (!targetFile) {
-        throw new Error(`No .txt file containing v3, v4, or v5 found inside nested ZIP: ${resolvedFileUrl}`);
+        throw new Error(`No .txt file found inside nested ZIP: ${resolvedFileUrl}`);
       }
+
+      assertSupportedGenomeVersionLabel(targetFile.name, "zip entry");
 
       const txt = await targetFile.async("string");
       if (!txt || !txt.trim()) {
@@ -1325,20 +1337,19 @@ async function extractTxtFromZipResponse(response, zipUrl, source, id = null, op
 
   const zip = await JSZip.loadAsync(buffer);
 
-  const targetFile = Object.keys(zip.files)
+  const zipTxtFiles = Object.keys(zip.files)
     .map(name => zip.files[name])
-    .find(file =>
-      !file.dir &&
-      file.name.toLowerCase().endsWith(".txt") &&
-      (!requireVersionLabel || hasSupportedGenomeVersionLabel(file.name))
-    );
+    .filter(file => !file.dir && file.name.toLowerCase().endsWith(".txt"));
+
+  const targetFile =
+    zipTxtFiles.find(file => hasSupportedGenomeVersionLabel(file.name)) || zipTxtFiles[0];
 
   if (!targetFile) {
-    throw new Error(
-      requireVersionLabel ?
-      `No .txt file containing v3, v4, or v5 found inside ZIP from ${zipUrl}` :
-      `No .txt file found inside ZIP from ${zipUrl}`
-    );
+    throw new Error(`No .txt file found inside ZIP from ${zipUrl}`);
+  }
+
+  if (requireVersionLabel) {
+    assertSupportedGenomeVersionLabel(targetFile.name, "zip entry");
   }
 
   const txt = await targetFile.async("string");
